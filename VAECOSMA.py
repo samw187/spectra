@@ -15,7 +15,8 @@ import os
 
 import tensorflow as tf
 import tensorflow_addons as tfa
-from tensorflow.keras import layers 
+from tensorflow.keras import layers
+from tensorflow.keras.models import Model 
 
 import matplotlib.pyplot as plt
 from IPython import display
@@ -28,7 +29,7 @@ import IPython.display as ipd
 
 #LOAD IN THE DATA
 
-data = np.load("spec64new4.npz")
+data = np.load("/cosma/home/durham/dc-will10/spec64new4.npz")
 
 spec = data["spectra"][0:50000]
 for i in range(len(spec)):
@@ -60,7 +61,7 @@ np.savez('datasplit.npz', trainidx=trainidx, valididx=valididx)
 
 #CHOOSE A BATCH SIZE AND SPLI THE DATA INTO TRAINING AND TEST DATA
 
-batch_size = 500
+batch_size = 1000
 predicts = []
 ELBOS = []
 
@@ -223,9 +224,9 @@ class CVAE(tf.keras.Model):
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
        
 
-epochs = 100
+epochs = 10
 # set the dimensionality of the latent space 
-latent_dim = int(input("How many latent dim?"))
+latent_dim = 6
 num_examples_to_generate = 1
 random_vector_for_generation = tf.random.normal(
     shape=[num_examples_to_generate, latent_dim])
@@ -270,12 +271,13 @@ for epoch in range(1, epochs + 1):
     generate_and_save_spectra(model, epoch, test_sample)
     
 np.savez("/cosma/home/durham/dc-will10/metrics2.npz", elbo = ELBOS, wavelengths = wavelengths, test_sample = test_sample, predictions = predicts)
-
+newmodel = Model.encoder()
+newmodel.save("/cosma5/data/durham/dc-will10/VAEmodel")
 print("saved metrics")
-
+"""
 imgids = []
-PATH = "/cosma5/data/durham/dc-will10/Image_data"
-
+PATH = "/cosma5/data/durham/dc-will10/Image_data100"
+spec = data["spectra"]
 for files in os.listdir(PATH):
     name = os.path.basename(files)
     if ".npy" in name:
@@ -285,17 +287,29 @@ labels = []
 count = 0
 for ids in imgids:
     ind = np.where(specids == ids)[0]
+    print(ind)
     sp = spec[ind]
     mean, logvar = model.encode(sp)
+    if np.shape(mean) != (1,6):
+        print(mean)
     z = np.zeros(12)
-    z[0:6] = mean
-    z[6:12] = logvar
+    if np.shape(mean) != (1,6):
+        z[0:6] = mean[0]
+    else:
+        z[0:6] = mean
+    if np.shape(logvar) != (1,6):
+        z[6:12] = logvar[0]
+    else:
+        z[6:12] = logvar
+    
     labels.append(z)
     print(count)
     count+=1
     
-    if count == 13285:
-        break
+    #if count == 13285:
+     #   break
     
 np.savez("imglabels.npz", labels = labels, ids = imgids)  
     
+model.save("/cosma5/data/durham/dc-will10/VAEmodel")
+"""

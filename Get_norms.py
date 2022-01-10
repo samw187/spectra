@@ -19,20 +19,58 @@ from astropy import coordinates as coords
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from optparse import OptionParser
+import numpy as np
+import pandas as pd
+import requests
+from astropy.io import fits
+from astropy.table import Table
+from astropy.utils.data import download_file
+import shutil
+from typing import List, Tuple
+
+import os
+from pathlib import Path
+import time
+import sys
+import urllib
 size = 100
 
-data = np.load("spec64new4.npz")
+data = np.load("/cosma/home/durham/dc-will10/spec64new4.npz")
 ra = data["ra"]
 dec = data["dec"]
 objid = data["objid"]
+magdata = pd.read_csv("/cosma/home/durham/dc-will10/highmaggalaxymags.csv")
+magras = np.array(magdata["ra"].values, dtype = np.int64)
+magdecs = np.array(magdata["dec"].values, dtype = np.int64)
+magcoords = []
+for i in range(len(magras)):
+    magcoords.append([magras[i], magdecs[i]])
+    
+magcoords = np.array(magcoords)
 
+magmags = np.array(magdata["r"].values)
 a = np.array(ra)
 b = np.array(dec)
 c = np.array(objid)
 norms = np.zeros(len(objid))
 
-df = pd.DataFrame({"ra" : a, "dec" : b, "objid" : c})
-df.to_csv("imagetester.csv", index=False)
+def cmdline():
+    """ Controls the command line argument handling for this little program.
+    """
+
+    # read in the cmd line arguments
+    USAGE = "usage:\t %prog [options]\n"
+    parser = OptionParser(usage=USAGE)
+
+    parser.add_option("--size", dest="size", default=100, help="Default size of images")
+    parser.add_option("--filters", dest="filters", default="grizy", help="PS1 filters to use")
+    
+    parser.add_option("--segment", dest="segment", default=1, help="Segment of data to download (1-10)", type="int")
+
+    (options, args) = parser.parse_args()
+
+    return options, args
 
 
 def getimages(ra,dec,size=size,filters="grizy"):
@@ -111,24 +149,63 @@ def getcolorim(ra, dec, size=size, output_size=None, filters="grizy", format="jp
     im = Image.open(BytesIO(r.content))
     return im
 
-for i in range(10):
-    url = geturl(ra[i], dec[i], size=size, filters="grizy", format="fits")
-    co = coords.SkyCoord(ra[i], dec[i], unit="deg")
-    xid = SDSS.query_crossid(co, photoobj_fields=['modelMag_r'])
-    result = float(xid["modelMag_r"].data)
-    vals = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16"]
-    rh = fits.open(url[1])
-    norm = 0
-    count = 0
-    for j in range(10):
-        if rh[0].header[f"ZPT_00{vals[j]}"] != 0 and rh[0].header[f"SCL_00{vals[j]}"] != 0:
-            
-            mag = rh[0].header[f"ZPT_00{vals[j]}"] - result
-            b = 1.2*10**-10
-            norm += 3631 *np.sinh((2*b*(((mag/-2.5) * np.log(10))- np.log(b))))
-            count = count+1
-    norm = norm/count
-    norms[i] = norm
-    print(f"norm {i}/{len(objid)}")
+def download_url_to_file(url: str, filename: str):
+    content_to_write = requests.get(url).content
+    with open(filename, 'wb') as f:
+        f.write(content_to_write)
+    return filename
+
+def calculate_slice(segment_number: int, data_length: int) -> Tuple[int, int]:
+    start = (data_length // 10) * (segment_number - 1)
+    if segment_number == 10:
+        end = data_length
+    else:
+        end = (data_length // 10) * segment_number
+    return start, end
+
+def main():
     
-np.savez("datanorms.npz", norms = norms, objids = objid)
+    opt,arg = cmdline()
+    n_gals = len(objid)
+    
+    data_segment = opt.segment
+    start_of_segment, end_of_segment = calculate_slice(data_segment, n_gals)
+    
+    count1 = 0
+    ind = 0
+    finalobjids = objid[start_of_segment:end_of_segment]
+
+    for i in range(start_of_segment, end_of_segment):
+        if not os.path.isfile(f"/cosma5/data/durham/dc-will10/raw_images/{objid[i]}_r.fits"):
+
+            url = geturl(ra[i], dec[i], size=size, filters="grizy", format = "fits")
+            ind == np.where(magcoords == [ra[i], dec[i]])
+            result = magmags[ind]
+            vals = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16"]
+            rhfile = download_url_to_file(url[1],  f"/cosma5/data/durham/dc-will10/raw_images/{objid[i]}_r.fits")
+            rh = fits.open(rhfile)
+            norm = 0
+            count = 0
+            for j in range(10):
+                if rh[0].header[f"ZPT_00{vals[j]}"] != 0:
+
+                    mag = result - rh[0].header[f"ZPT_00{vals[j]}"]
+
+                    norm += np.exp(mag/-2.5)
+                    count = count+1
+            norm = norm/count
+            append1 = np.load(f"/cosma/home/durham/dc-will10/datanorms{data_segment}.npz")["norms"]
+            append2 = np.load(f"/cosma/home/durham/dc-will10/datanorms{data_segment}.npz")["objids"]
+            np.append(append1, norm/1500)
+            np.append(append2, objid[i])
+            np.savez(f"/cosma/home/durham/dc-will10/datanorms{data_segment}.npz", norms = append1, objids = append2)
+            #norms[i] = norm/1500
+        count1+=1
+        print(f"norm {count1}/{len(objid)/10}")
+
+    print("FINISHED")
+        
+
+    
+
+main()

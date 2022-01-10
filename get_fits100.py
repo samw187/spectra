@@ -7,23 +7,23 @@ Partially based off https://ps1images.stsci.edu/ps1image.html
 
 from optparse import OptionParser
 import numpy as np
-import pandas as pd
 import requests
 from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.data import download_file
 import shutil
 from typing import List, Tuple
-
+import pandas as pd
 import os
 from pathlib import Path
 import time
 import sys
 import urllib
-
-data = np.load("spec64new4.npz")
-ra = data["ra"]
-dec = data["dec"]
+from astroquery.sdss import SDSS
+data = np.load("/cosma/home/durham/dc-will10/spec64new4.npz")
+coords = np.load("/cosma/home/durham/dc-will10/spectra/speccoords.npz")
+ra = coords["ra"]
+dec = coords["dec"]
 objid = data["objid"]
 
 a = np.array(ra)
@@ -33,7 +33,7 @@ norms = np.zeros(len(objid))
 size = 100
 
 df = pd.DataFrame({"ra" : a, "dec" : b, "objid" : c})
-df.to_csv("imagetester.csv", index=False)
+df.to_csv("/cosma5/data/durham/dc-will10/imagetester.csv", index=False)
 
 
 PATH = "/cosma5/data/durham/dc-will10"
@@ -58,7 +58,7 @@ def cmdline():
     parser.add_option(
         "--output",
         dest="output",
-        default=f"{PATH}/Image_data100",
+        default=f"{PATH}/Image_data",
         help="Path to save image data",
     )
     parser.add_option("--size", dest="size", default=100, help="Default size of images")
@@ -72,6 +72,7 @@ def cmdline():
     parser.add_option("--segment", dest="segment", default=1, help="Segment of data to download (1-10)", type="int")
 
     (options, args) = parser.parse_args()
+    
 
     return options, args
 
@@ -205,7 +206,7 @@ def main():
                 #norms[count1] = norm
                 #count1+=1
                 #time.sleep(0.001)
-                delete_files(files_of_interest)
+                #delete_files([files_of_interest[0], files_of_interest[2], files_of_interest[3], files_of_interest[4]])
             except (urllib.error.HTTPError, urllib.error.URLError):
                 pass
         current = count1 / (n_gals/10) * 100

@@ -17,7 +17,7 @@ base_dir = '/cosma5/data/durham/dc-will10/Image_data'
 
 
 
-train_fnames = os.listdir(base_dir)[0:13285]
+train_fnames = os.listdir(base_dir)[0:13000]
 
 
 labelfile = np.load("imglabels.npz")
@@ -37,12 +37,13 @@ count = 0
 for name in train_fnames:
     img = np.load(f"{base_dir}/{name}")
     if np.shape(img) == (5,200,200) and not np.any(np.isnan(img)):
-        trainarray.append(img)
+        trainarray.append(np.moveaxis(img, 0, -1))
         objid  = name.replace(".npy", "")
         ind = np.where(labelfile["ids"]==int(objid))
         label = labels[ind]
         trainlabels.append(label)
-        print(count)
+        if count % 1000 == 0:
+            print(f"Count: {count}")
     count+=1 
 print(np.shape(trainarray))
 print(np.shape(trainlabels))
@@ -56,6 +57,8 @@ vallabels = trainlabels[valind:-1]
 trainlabels = trainlabels[0:valind]
 trainlabels = np.array(trainlabels)
 vallabels = np.array(vallabels)
+
+
 """   
 for i in range(1000):
     r = np.random.randint(0, len(trainarray))
@@ -87,20 +90,21 @@ for ind in ces:
     trainarray.pop(ind)
     trainlabels = np.delete(trainlabels, ind)
 """
+
 trainarray = np.array(trainarray)
 for i in range(len(trainarray)):
     trainarray[i] /= 255
     
 valarray = np.array(valarray)
 for i in range(len(valarray)):
-    valarray[i] /= np.max(valarray[i])
- 
+    valarray[i] /= 255
+
       
 print(np.shape(trainarray))
 print(np.shape(trainlabels))
 print(np.shape(valarray))
 print(np.shape(vallabels))
-   
+
       
 
 
@@ -114,40 +118,49 @@ vallabels = tf.convert_to_tensor(vallabels)
 
 print(len(train_dataset))
 print(len(trainlabels))
+"""
+datastuff = np.load("/cosma5/data/durham/dc-will10/CNNtensors.npz")
+train_dataset = datastuff["traindata"]
+test_dataset = datastuff["testdata"]
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+trainlabels = datastuff["trainlabels"]
+vallabels = datastuff["vallabels"]
+print(np.shape(trainlabels))
+"""
 
 import tensorflow_addons as tfa
 
 
 model = tf.keras.models.Sequential()
-model.add(layers.Reshape(target_shape = (200,200,5), input_shape = (5, 200,200)))
-model.add(layers.Conv2D(64, 3, input_shape = (200,200,5),activation = "relu") )
+#model.add(layers.Reshape(target_shape = (200,200,5), input_shape = (5, 200,200)))
+model.add(layers.Conv2D(80, 3, input_shape = (200,200,5),activation = "relu") )
 model.add(layers.Dropout(0.25))
-model.add(layers.Conv2D(128, 3,activation = "relu" ))
+model.add(layers.Conv2D(32, 3,activation = "relu" ))
 model.add(layers.MaxPool2D(pool_size=(2,2)))
 model.add(layers.Dropout(0.25))
-model.add(layers.Conv2D(256, 3 ,activation = "relu"))
+model.add(layers.Conv2D(32, 3 ,activation = "relu"))
 model.add(layers.Dropout(0.25))
-model.add(layers.Conv2D(256, 3 ,activation = "relu"))
+#model.add(layers.Conv2D(256, 3 ,activation = "relu"))
 model.add(layers.MaxPool2D(pool_size=(2,2)))
-model.add(layers.Dropout(0.25))
+#model.add(layers.Dropout(0.25))
 # fully connected
 model.add(layers.Flatten())
-model.add(layers.Dense(256))
-model.add(layers.Dropout(0.5))
+#model.add(layers.Dense(256))
+#model.add(layers.Dropout(0.5))
 model.add(layers.Dense(12))
 #model.add(layers.Reshape(target_shape = (1,20), input_shape = (None,20)))
 
-optimizer = Adam(lr=0.001)
+optimizer = Adam(lr=0.0001)
 
-model.compile(optimizer = optimizer , loss = "mse", metrics=["mean_squared_error"])
+model.compile(optimizer = optimizer , loss = tf.keras.losses.MeanAbsoluteError(), metrics=["mean_squared_error"])
 model.summary()
 
 epochs = 10
-batch_size = 2
+batch_size = 100
 history = model.fit(x = train_dataset, y = trainlabels, batch_size=batch_size, validation_data = (test_dataset, vallabels), epochs = epochs, steps_per_epoch=100)
 
-val_results = (model(test_dataset)).numpy()
-val_data = test_dataset.numpy()
+val_results = model.predict(test_dataset)
+val_data = vallabels
 loss = history.history["loss"]
 valloss = history.history["val_loss"]
 np.savez("cnnmetrics.npz", validation_results = val_results, validation_data = val_data, loss = loss, valloss = valloss)
