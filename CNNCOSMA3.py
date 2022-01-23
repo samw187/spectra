@@ -124,10 +124,11 @@ vallabels = datastuff["vallabels"]
 print(np.shape(trainlabels))
 
 print(np.shape(vallabels))
-print("TENSORS SAVED")
+print("TENSORS LOADED")
+"""
 def model_builder(hp):
     model = tf.keras.models.Sequential()
-    model.add(layers.Reshape(target_shape = (100,100,5), input_shape = (5, 100,100)))
+    #model.add(layers.Reshape(target_shape = (100,100,5), input_shape = (5, 100,100)))
     model.add(layers.Convolution2D(filters=hp.Int('convolution_1',min_value=32, max_value=96, step=16), 
                             kernel_size = 3, activation='relu',
                             input_shape=(100,100,5)))
@@ -155,6 +156,44 @@ def model_builder(hp):
 
     model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp_learning_rate),
                 loss=tf.keras.losses.MeanAbsoluteError(),
+                metrics=['mean_squared_error'])
+    
+    print(model.summary())
+
+    return model
+"""
+def model_builder(hp):
+    hyp_dropout = hp.Choice('dropout_rate', values=[0.2, 0.4, 0.6, 0.8])
+    model = tf.keras.models.Sequential()
+    #model.add(layers.Reshape(target_shape = (100,100,5), input_shape = (5, 100,100)))
+    model.add(layers.Convolution2D(filters=hp.Choice('convolution_1',values = [16,32,64,128,256,512]), 
+                            kernel_size = 3, activation='relu',
+                            input_shape=(100,100,5)))
+    model.add(layers.MaxPool2D(pool_size=(2,2)))
+    model.add(layers.Dropout(hyp_dropout))
+    model.add(layers.Convolution2D(filters=hp.Choice('convolution_2',values = [16,32,64,128,256,512]), 
+                            kernel_size = 3,activation='relu'))
+    model.add(layers.MaxPool2D(pool_size=(2,2)))
+    model.add(layers.Dropout(hyp_dropout))
+    model.add(layers.Convolution2D(filters=hp.Choice('convolution_3',values = [16,32,64,128,256,512]), 
+                            kernel_size = 3,activation='relu'))
+    model.add(layers.MaxPool2D(pool_size=(2,2)))
+    model.add(layers.Dropout(hyp_dropout))
+    model.add(layers.Convolution2D(filters=hp.Choice('convolution_4',values = [16,32,64,128,256,512]), 
+                            kernel_size = 3,activation='relu'))
+    model.add(layers.MaxPool2D(pool_size=(2,2)))
+    model.add(layers.Dropout(hyp_dropout))
+    model.add(layers.Flatten())
+    #model.add(layers.Dense(units=hp.Int('units', min_value=32, max_value=128, step=32), activation='relu'))
+    model.add(layers.Dense(units = hp.Choice("units_1", values = [32,64,128]), activation = "relu"))
+    model.add(layers.Dense(16))
+    model.add(layers.Reshape(target_shape = (1,16), input_shape = (None, 16)))
+  # Tune the learning rate for the optimizer
+  # Choose an optimal value from 0.01, 0.001, or 0.0001
+    hp_learning_rate = hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
+
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp_learning_rate),
+                loss=tf.keras.losses.MeanSquaredError(),
                 metrics=['mean_squared_error'])
     
     print(model.summary())
@@ -191,26 +230,28 @@ def model_builder2(hp):
     return model
 
 
-tuner = kt.BayesianOptimization(model_builder2,
+tuner = kt.BayesianOptimization(model_builder,
                      objective='val_loss',
                      max_trials=15,
                      directory= "/cosma5/data/durham/dc-will10" ,
-                     project_name='intro_to_kt3')
+                     project_name='cnn_ktprop')
 
-stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
+stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=15)
 
 tuner.search(train_dataset,trainlabels,epochs=200,validation_data=(test_dataset,vallabels), callbacks = [stop_early])
 print("SEARCH COMPLETE")
 best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
-stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=20)
 model = tuner.hypermodel.build(best_hps)
-history = model.fit(train_dataset,trainlabels, epochs=40, validation_split = 0.2, batch_size = 1)
+history = model.fit(train_dataset,trainlabels, epochs=100, validation_data = (test_dataset, vallabels))
 print("MODEL FITTED")
-print(test_dataset[0:2])
-val_results = model.predict(test_dataset)
+model.save("/cosma5/data/durham/dc-will10/CNNmodel")
+val_results = []
+for data in test_dataset:
+    alt = np.expand_dims(data, axis = 0)
+    pred = model.predict(alt)
+    val_results.append(pred)
 val_data = vallabels
 loss = history.history["loss"]
 valloss = history.history["val_loss"]
-np.savez("cnnmetrics3.npz", validation_results = val_results, validation_data = val_data, loss = loss, valloss = valloss, testdata = test_dataset)
+np.savez("cnnmetrics3.npz", validation_results = val_results, validation_data = val_data, loss = loss, valloss = valloss)
 
-model.save("/cosma5/data/durham/dc-will10/CNNmodel")

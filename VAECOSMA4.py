@@ -15,6 +15,7 @@ from tensorflow.keras.models import Model
 import scipy
 import glob
 import time
+import random
 
 data = np.load("/cosma/home/durham/dc-will10/spec64new4.npz")
 norms = np.load("/cosma/home/durham/dc-will10/normsfinal.npz")["norms"]
@@ -26,13 +27,14 @@ for i in range(len(spec)):
     #spec[i] = spec[i] - np.min(spec[i])
     #spec[i] /= np.max(spec[i])
 spec = np.expand_dims(spec, axis=1)
+print(np.shape(spec))
 wavelengths = data["wavelengths"]
 tf.reshape(wavelengths, (1,1767))
 
 
 print(np.shape(spec))
 #errs = np.array(errs)
-
+random.shuffle(spec)
 trainfrac = 0.8
 train_size = 40000
 test_size = 10000
@@ -51,15 +53,17 @@ validspec = spec[valididx,:]
 np.savez('datasplit.npz', trainidx=trainidx, valididx=valididx)
 
 #CHOOSE A BATCH SIZE AND SPLI THE DATA INTO TRAINING AND TEST DATA
-
+print(np.shape(validspec))
 batch_size = 1000
 predicts = []
 ELBOS = []
 
-train_dataset = (tf.data.Dataset.from_tensor_slices(trainspec).shuffle(train_size).batch(batch_size))
+#train_dataset = (tf.data.Dataset.from_tensor_slices(trainspec).shuffle(train_size).batch(batch_size))
+train_dataset = tf.convert_to_tensor(trainspec)
+test_dataset = tf.convert_to_tensor(validspec)
+#train_dataset = (tf.data.Dataset.from_tensor_slices(trainspec).shuffle(train_size))
 
-test_dataset = (tf.data.Dataset.from_tensor_slices(validspec)
-                .shuffle(test_size).batch(batch_size))
+#test_dataset = (tf.data.Dataset.from_tensor_slices(validspec).shuffle(test_size))
 
 class Sampling(layers.Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
@@ -76,13 +80,13 @@ class Resnet1DBlock(tf.keras.Model):
         super(Resnet1DBlock, self).__init__(name='')
     
         if type=='encode':
-            self.conv1a = layers.Conv1D(filters, kernel_size, 2,padding="same")
-            self.conv1b = layers.Conv1D(filters, kernel_size, 1,padding="same")
+            self.conv1a = layers.Conv1D(filters, kernel_size, 2,padding="same", activation = "relu")
+            self.conv1b = layers.Conv1D(filters, kernel_size, 1,padding="same", activation = "relu")
             self.norm1a = tfa.layers.InstanceNormalization()
             self.norm1b = tfa.layers.InstanceNormalization()
         if type=='decode':
-            self.conv1a = layers.Conv1DTranspose(filters, kernel_size, 1,padding="same")
-            self.conv1b = layers.Conv1DTranspose(filters, kernel_size, 1,padding="same")
+            self.conv1a = layers.Conv1DTranspose(filters, kernel_size, 1,padding="same", activation = "relu")
+            self.conv1b = layers.Conv1DTranspose(filters, kernel_size, 1,padding="same", activation = "relu")
             self.norm1a = tf.keras.layers.BatchNormalization()
             self.norm1b = tf.keras.layers.BatchNormalization()
         else:
@@ -142,37 +146,70 @@ class VAE(keras.Model):
             "reconstruction_loss": self.reconstruction_loss_tracker.result(),
             "kl_loss": self.kl_loss_tracker.result(),
         }
-    
+        
+    def test_step(self, data):
+        if isinstance(data, tuple):
+            data = data[0]
+        z_mean, z_log_var, z = self.encoder(data)
+        reconstruction = self.decoder(z)
+        reconstruction_loss = tf.reduce_mean(
+                tf.reduce_sum(
+                    keras.losses.MSE(data, reconstruction)
+                )
+            )
+        kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
+        kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
+        total_loss = reconstruction_loss + kl_loss
+        return {
+            "valloss": total_loss,
+            "valreconstruction_loss": reconstruction_loss,
+            "valkl_loss": kl_loss,
+        }
+    """
     def call(self, inputs):
         z_mean, z_log_var, z = self.encoder(inputs)
-        reconstructed = self.decoder(z)
-        # Add KL divergence regularization loss.
-        #kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
-        #self.add_loss(kl_loss)
-        return reconstructed
-
+        reconstruction = self.decoder(z)
+        reconstruction_loss = tf.reduce_mean(
+                tf.reduce_sum(
+                    keras.losses.MSE(data, reconstruction)
+                )
+            )
+        kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
+        kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
+        total_loss = reconstruction_loss + kl_loss
+        self.add_metric(kl_loss, name='valkl_loss')
+        self.add_metric(total_loss, name='valtotal_loss')
+        self.add_metric(reconstruction_loss, name='valreconstruction_loss')
+        return reconstruction
+        """
 def model_builder(hp):
-    latent_dim = hp.Choice("latent_dim", values = [6, 10, 15, 20])
+    latent_dim = hp.Choice("latent_dim", values = [6])
     filters1 = hp.Choice("filters1", values = [32,64,128,256,512, 1024, 2048])
     filters2 = hp.Choice("filters2", values = [32,64,128,256,512, 1024, 2048])
     filters3 = hp.Choice("filters3", values = [32,64,128,256,512, 1024, 2048])
     filters4 = hp.Choice("filters4", values = [32,64,128,256,512, 1024, 2048])
-
+    dr = hp.Choice("dropout_rate", values = [0.4,0.6,0.8])
     encoder_inputs = keras.Input(shape=(1,1767))
     x = layers.Reshape(target_shape = (1,1767,), input_shape=(1,1767))(encoder_inputs)
-    x=layers.Conv1D(filters1,1,2, name = "firstconv")(x)
+    x=layers.Conv1D(filters1,1,2, name = "firstconv", activation = "relu")(x)
     x=Resnet1DBlock(filters1,1)(x)
-    x=layers.Conv1D(filters2,1,2, name = "secondconv")(x)
+    x=layers.Dropout(dr)(x)
+    x=layers.Conv1D(filters2,1,2, name = "secondconv", activation = "relu")(x)
     x=Resnet1DBlock(filters2,1)(x)
-    x=layers.Conv1D(filters3,1,2, name = "thirdconv")(x)
+    x=layers.Dropout(dr)(x)
+    x=layers.Conv1D(filters3,1,2, name = "thirdconv", activation = "relu")(x)
     x=Resnet1DBlock(filters3,1)(x)
-    x=layers.Conv1D(filters4,1,2, name = "fourthconv")(x)
+    x=layers.Dropout(dr)(x)
+    x=layers.Conv1D(filters4,1,2, name = "fourthconv", activation = "relu")(x)
     x=Resnet1DBlock(filters4,1)(x)
     # No activation
     x=layers.Flatten()(x)
     z_mean = layers.Dense(latent_dim, name="z_mean")(x)
     z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
     z = Sampling()([z_mean, z_log_var])
+    #tf.reshape(z, (1,latent_dim))
+    #tf.reshape(z_mean, (1,latent_dim))
+    #tf.reshape(z_log_var, (1,latent_dim))
     encoder = keras.Model(encoder_inputs, [z_mean, z_log_var, z], name="encoder")
     
 
@@ -182,18 +219,21 @@ def model_builder(hp):
     filters8 = hp.Choice("filters8", values = [32,64,128,256,512, 1024, 2048])
 
     latent_inputs = keras.Input(shape=(latent_dim,))
-    x = tf.keras.layers.InputLayer(input_shape=(latent_dim,))(latent_inputs)
-    x = layers.Reshape(target_shape=(1,latent_dim))(x)
+    #x = tf.keras.layers.InputLayer(input_shape=(latent_dim,))(latent_inputs)
+    x = layers.Reshape(target_shape=(1,latent_dim))(latent_inputs)
     x = Resnet1DBlock(filters5,1,'decode')(x)
-    x = layers.Conv1DTranspose(filters5,1,1)(x)
+    x = layers.Conv1DTranspose(filters5,1,1, activation = "relu")(x)
+    x=layers.Dropout(dr)(x)
     x = Resnet1DBlock(filters6,1,'decode')(x)
-    x = layers.Conv1DTranspose(filters6,1,1)(x)
+    x = layers.Conv1DTranspose(filters6,1,1, activation = "relu")(x)
+    x=layers.Dropout(dr)(x)
     x = Resnet1DBlock(filters7,1,'decode')(x)
-    x = layers.Conv1DTranspose(filters7,1,1)(x)
+    x = layers.Conv1DTranspose(filters7,1,1, activation = "relu")(x)
+    x=layers.Dropout(dr)(x)
     x = Resnet1DBlock(filters8,1,'decode')(x)
-    x = layers.Conv1DTranspose(filters8,1,1)(x)
+    x = layers.Conv1DTranspose(filters8,1,1, activation = "relu")(x)
     # No activation
-    x = layers.Conv1DTranspose(1767,1,1)(x)
+    x = layers.Conv1DTranspose(1767,1,1, activation = "relu")(x)
     decoder_outputs = layers.Reshape(target_shape = (1,1767))(x)
     decoder = keras.Model(latent_inputs, decoder_outputs, name="decoder")
     model = VAE(encoder,decoder)
@@ -204,8 +244,7 @@ def model_builder(hp):
     return model
 
 def model_builder2(hp):
-    latent_dim = hp.Choice("latent_dim", values = [6,10,15,20])
-    latent_dim = 10
+    latent_dim = hp.Choice("latent_dim", values = [6])
     units1 = hp.Choice("units1", values = [32,64,128,256,512, 1024, 2048])
     units2 = hp.Choice("units2", values = [32,64,128,256,512, 1024, 2048])
     units3 = hp.Choice("units3", values = [32,64,128,256,512, 1024, 2048])
@@ -214,7 +253,7 @@ def model_builder2(hp):
     units6 = hp.Choice("units6", values = [32,64,128,256,512, 1024, 2048])
     units7 = hp.Choice("units7", values = [32,64,128,256,512, 1024, 2048])
     units8 = hp.Choice("units8", values = [32,64,128,256,512, 1024, 2048])
-    dr = hp.Choice("dropout_rate", values = [0.2,0.4,0.6,0.8])
+    dr = hp.Choice("dropout_rate", values = [0.4,0.6,0.8])
     encoder_inputs = keras.Input(shape=(1,1767))
     x = layers.Reshape(target_shape = (1767,), input_shape=(1,1767))(encoder_inputs)
     x=layers.Dense(units1, name = "firstdense")(x)
@@ -252,37 +291,102 @@ def model_builder2(hp):
     model.summary
     return model
 
+def model_builder3(hp):
+    latent_dim = hp.Choice("latent_dim", values = [6, 8, 10])
+    filters1 = hp.Choice("filters1", values = [32,64,128,256,512, 1024, 2048])
+    filters2 = hp.Choice("filters2", values = [32,64,128,256,512, 1024, 2048])
+    filters3 = hp.Choice("filters2", values = [32,64,128,256,512, 1024, 2048])
+    units1 = hp.Choice("units1", values = [16,32,64,128,256,512, 1024, 2048])
+    units2 = hp.Choice("units2", values = [16,32,64,128,256,512, 1024, 2048])
+    dr = hp.Choice("dropout_rate", values = [0.4,0.6,0.8])
+    encoder_inputs = keras.Input(shape=(1,1767))
+    #x = layers.Reshape(target_shape = (1,1767,), input_shape=(1,1767))(encoder_inputs)
+    x=layers.Conv1D(filters1,1,2, name = "firstconv", activation = "relu")(encoder_inputs)
+    x=layers.MaxPool1D(pool_size = 2, padding = "same")(x)
+    x=layers.Dropout(dr)(x)
+    x=layers.Conv1D(filters2,1,2, name = "secondconv",activation = "relu")(x)
+    x=layers.MaxPool1D(pool_size = 2, padding = "same")(x)
+    x=layers.Dropout(dr)(x)
+    x=layers.Conv1D(filters3,1,2, name = "thirdconv",activation = "relu")(x)
+    x=layers.MaxPool1D(pool_size = 2, padding = "same")(x)
+    x=layers.Dropout(dr)(x)
+    x=layers.Flatten()(x)
+    x=layers.Dense(units1,activation = "relu")(x)
+    x=layers.Dropout(dr)(x)
+    x = layers.Dense(units2,activation = "relu")(x)
+    z_mean = layers.Dense(latent_dim, name="z_mean")(x)
+    z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
+    z = Sampling()([z_mean, z_log_var])
+    #z = layers.Lambda(Sampling)([z_mean, z_log_var])
+    #tf.reshape(z, (1,latent_dim))
+    #tf.reshape(z_mean, (1,latent_dim))
+    #tf.reshape(z_log_var, (1,latent_dim))
+    encoder = keras.Model(encoder_inputs, [z_mean, z_log_var, z], name="encoder")
+    
+
+    filters4 = hp.Choice("filters5", values = [32,64,128,256,512, 1024, 2048])
+    filters5 = hp.Choice("filters6", values = [32,64,128,256,512, 1024, 2048])
+    units3 = hp.Choice("units3", values = [16,32,64,128,256,512, 1024, 2048])
+    units4 = hp.Choice("units4", values = [16,32,64,128,256,512, 1024, 2048])
+
+    latent_inputs = keras.Input(shape=(latent_dim,))
+    #x = tf.keras.layers.InputLayer(input_shape=(latent_dim,))(latent_inputs)
+    x=layers.Dense(units3, activation = "relu")(latent_inputs)
+    x=layers.Dropout(dr)(x)
+    x = layers.Dense(units4,activation = "relu")(x)
+    x = layers.Reshape(target_shape=(1,units4))(x)
+    x = layers.Conv1DTranspose(filters4,1,1,activation = "relu")(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Conv1DTranspose(filters5,1,1,activation = "relu")(x)
+    x = layers.BatchNormalization()(x)
+    # No activation
+    x = layers.Conv1DTranspose(1767,1,1, activation = "relu")(x)
+    decoder_outputs = layers.Reshape(target_shape = (1,1767))(x)
+    decoder = keras.Model(latent_inputs, decoder_outputs, name="decoder")
+    model = VAE(encoder,decoder)
+    hp_learning_rate = hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4, 1e-5])
+    model.compile(optimizer=keras.optimizers.Adam(lr = hp_learning_rate))
+    model.build
+    print(model.summary)
+    return model
 
 
-tuner = kt.BayesianOptimization(model_builder,objective=kt.Objective("reconstruction_loss", direction="min"),max_trials=20,directory= "/cosma5/data/durham/dc-will10" ,project_name='vae_ktconv')
 
-stop_early = tf.keras.callbacks.EarlyStopping(monitor='reconstruction_loss', patience=25)
+tuner = kt.BayesianOptimization(model_builder3,objective=kt.Objective("reconstruction_loss", direction="min"),max_trials=5,directory= "/cosma5/data/durham/dc-will10" ,project_name='vae_ktpooled')
 
-tuner.search(train_dataset,epochs=250, callbacks = [stop_early])
+stop_early = tf.keras.callbacks.EarlyStopping(monitor='reconstruction_loss', patience=10)
+
+tuner.search(train_dataset, epochs=150, callbacks = [stop_early])
 
 best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
-#best_hps["latent_dim"] = 10
+print(best_hps.get("latent_dim"))
+ld = best_hps.get("latent_dim")
 model = tuner.hypermodel.build(best_hps)
-model.compile(loss = "reconstruction_loss")
-history = model.fit(train_dataset, epochs=500)
+model.compile(loss = "loss")
+history = model.fit(train_dataset, epochs=100, callbacks = [stop_early])
 #model.call(inputs = (1,1767))
 #model.build(input = (1,1767))
 model.decoder.save("/cosma/home/durham/dc-will10/spectra/VAEdecoder")
 model.encoder.save("/cosma/home/durham/dc-will10/spectra/VAEencoder")
-model.save("/cosma/home/durham/dc-will10/spectra/VAEmodel")
+#model.save("/cosma/home/durham/dc-will10/spectra/VAEmodel")
 sp = data["spectra"]
+for i in range(len(spec)):
+    sp[i] = sp[i] / data["norms"][i]
+    sp[i] = sp[i] / np.max(sp[i])
 objids = data["objid"]
 sp = sp[:, np.newaxis, :]
 
 
 labels = []
+zs = []
 count = 0
 for i in range(len(sp)):
     mean, logvar, z = model.encoder.predict(sp[i][np.newaxis, :, :])
-    label = np.zeros(12)
-    label[0:6] = mean
-    label[6:12] = logvar
+    label = np.zeros(2*ld)
+    label[0:ld] = mean
+    label[ld:2*ld] = logvar
     labels.append(label)
+    zs.append(z)
     count+=1
     print(count)
-np.savez("imglabels.npz", labels = labels, ids = objids)
+np.savez("imglabels.npz", labels = labels, ids = objids, zs = zs)

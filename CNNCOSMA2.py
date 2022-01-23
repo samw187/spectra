@@ -16,10 +16,10 @@ base_dir = '/cosma5/data/durham/dc-will10/Image_data'
 
 
 
-train_fnames = os.listdir(base_dir)[0:30000]
+train_fnames = os.listdir(base_dir)[0:50000]
 
 
-labelfile = np.load("imglabels.npz")
+labelfile = np.load("/cosma5/data/durham/dc-will10/imglabels2.npz")
 labels = labelfile["labels"]
 trainlabels = []
 
@@ -38,7 +38,7 @@ for name in train_fnames:
     objid  = name.replace(".npy", "")
     ind = np.where(labelfile["ids"]==int(objid))
     label = labels[ind]
-    if np.shape(img) == (5,100,100) and not np.any(np.isnan(img)) and np.shape(label) == (1,12) and not np.any(np.isnan(label)):
+    if np.shape(img) == (5,100,100) and not np.any(np.isnan(img)) and np.shape(label) == (1,16) and not np.any(np.isnan(label)):
         img = np.moveaxis(img, 0, -1)
         img = img - np.min(img)
         img /= np.max(img)
@@ -123,36 +123,39 @@ trainlabels = tf.convert_to_tensor(trainlabels)
 vallabels = tf.convert_to_tensor(vallabels)
 np.savez("/cosma5/data/durham/dc-will10/CNNtensors.npz", traindata = train_dataset, testdata = test_dataset, trainlabels = trainlabels, vallabels = vallabels)
 print("TENSORS SAVED")
+import pdb; pdb.set_trace()
 def model_builder(hp):
     hyp_dropout = hp.Choice('dropout_rate', values=[0.2, 0.4, 0.6, 0.8])
     model = tf.keras.models.Sequential()
     #model.add(layers.Reshape(target_shape = (100,100,5), input_shape = (5, 100,100)))
-    model.add(layers.Convolution2D(filters=hp.Int('convolution_1',min_value=32, max_value=96, step=16), 
+    model.add(layers.Convolution2D(filters=hp.Choice('convolution_1',values = [16,32,64,128,256,512]), 
                             kernel_size = 3, activation='relu',
                             input_shape=(100,100,5)))
+    model.add(layers.MaxPool2D(pool_size=(2,2)))
     model.add(layers.Dropout(hyp_dropout))
-    model.add(layers.Convolution2D(filters=hp.Int('convolution_2',min_value=32, max_value=96, step=16), 
+    model.add(layers.Convolution2D(filters=hp.Choice('convolution_2',values = [16,32,64,128,256,512]), 
                             kernel_size = 3,activation='relu'))
     model.add(layers.MaxPool2D(pool_size=(2,2)))
     model.add(layers.Dropout(hyp_dropout))
-    model.add(layers.Convolution2D(filters=hp.Int('convolution_3',min_value=32, max_value=96, step=16), 
+    model.add(layers.Convolution2D(filters=hp.Choice('convolution_3',values = [16,32,64,128,256,512]), 
                             kernel_size = 3,activation='relu'))
-    model.add(layers.Dropout(hyp_dropout))
-    #model.add(layers.Convolution2D(filters=hp.Int('convolution_4',min_value=32, max_value=128, step=16), 
-    #                        kernel_size = 3,activation='relu'))
     model.add(layers.MaxPool2D(pool_size=(2,2)))
-    #model.add(layers.Dropout(hyp_dropout))
+    model.add(layers.Dropout(hyp_dropout))
+    model.add(layers.Convolution2D(filters=hp.Choice('convolution_4',values = [16,32,64,128,256,512]), 
+                            kernel_size = 3,activation='relu'))
+    model.add(layers.MaxPool2D(pool_size=(2,2)))
+    model.add(layers.Dropout(hyp_dropout))
     model.add(layers.Flatten())
     #model.add(layers.Dense(units=hp.Int('units', min_value=32, max_value=128, step=32), activation='relu'))
-    model.add(layers.Dropout(0.5))
-    model.add(layers.Dense(12))
-    model.add(layers.Reshape(target_shape = (1,12), input_shape = (None, 12)))
+    model.add(layers.Dense(units = hp.Choice("units_1", values = [32,64,128]), activation = "relu"))
+    model.add(layers.Dense(16))
+    model.add(layers.Reshape(target_shape = (1,16), input_shape = (None, 16)))
   # Tune the learning rate for the optimizer
   # Choose an optimal value from 0.01, 0.001, or 0.0001
     hp_learning_rate = hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
 
     model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp_learning_rate),
-                loss=tf.keras.losses.MeanAbsoluteError(),
+                loss=tf.keras.losses.MSE(),
                 metrics=['mean_squared_error'])
     
     print(model.summary())
@@ -162,9 +165,9 @@ def model_builder(hp):
 
 tuner = kt.BayesianOptimization(model_builder,
                      objective='val_loss',
-                     max_trials=15,
+                     max_trials=10,
                      directory= "/cosma5/data/durham/dc-will10" ,
-                     project_name='intro_to_kt')
+                     project_name='intro_to_ktfinal')
 
 stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=15)
 

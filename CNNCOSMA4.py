@@ -23,39 +23,51 @@ print(np.shape(vallabels))
 print("TENSORS LOADED")
 
 model = tf.keras.models.Sequential()
-model.add(layers.Conv2D(512, 3, input_shape = (100,100,5),activation = "relu") )
+model.add(layers.Conv2D(64, 3, input_shape = (100,100,5),activation = "relu") )
+model.add(layers.Conv2D(64, 3,activation = "relu" ))
+model.add(layers.BatchNormalization())
+model.add(layers.MaxPool2D(pool_size=(2,2)))
+model.add(layers.Dropout(0.5))
+model.add(layers.Conv2D(128, 3,activation = "relu" ))
+model.add(layers.Conv2D(128, 3,activation = "relu" ))
+model.add(layers.BatchNormalization())
+model.add(layers.MaxPool2D(pool_size=(2,2)))
+model.add(layers.Dropout(0.5))
+model.add(layers.Conv2D(256, 3 ,activation = "relu"))
+model.add(layers.Conv2D(256, 3 ,activation = "relu"))
+model.add(layers.Conv2D(256, 3 ,activation = "relu"))
+model.add(layers.BatchNormalization())
 model.add(layers.MaxPool2D(pool_size=(2,2)))
 model.add(layers.Dropout(0.5))
 model.add(layers.Conv2D(512, 3,activation = "relu" ))
-model.add(layers.MaxPool2D(pool_size=(2,2)))
-#model.add(tfa.layers.InstanceNormalization())  
-model.add(layers.Dropout(0.5))
+model.add(layers.Conv2D(512, 3,activation = "relu" ))
 model.add(layers.Conv2D(512, 3 ,activation = "relu"))
+model.add(layers.BatchNormalization())
 model.add(layers.MaxPool2D(pool_size=(2,2)))
+model.add(layers.Dropout(0.5))
 #model.add(tfa.layers.InstanceNormalization())  
-model.add(layers.Dropout(0.5))
-model.add(layers.Conv2D(512, 3 ,activation = "relu"))
-model.add(layers.MaxPool2D(pool_size=(2,2)))
-model.add(layers.Dropout(0.5))
-# fully connected
+model.add(layers.Conv2D(512, 3 ,activation = "relu", padding = "same"))
+model.add(layers.Conv2D(512, 3 ,activation = "relu", padding = "same"))
+model.add(layers.Conv2D(512, 3 ,activation = "relu", padding = "same"))
+model.add(layers.BatchNormalization())
+#model.add(layers.MaxPool2D(pool_size=(2,2)))
 model.add(layers.Flatten())
-#model.add(tfa.layers.InstanceNormalization())  
-#model.add(layers.Dense(256))
-#model.add(layers.Dropout(0.5))
-model.add(layers.Dense(12))
-model.add(layers.Reshape(target_shape = (1,12), input_shape = (None, 12)))
+model.add(layers.Dense(2048))
+model.add(layers.Dense(2048))
+model.add(layers.Dense(16))
+model.add(layers.Reshape(target_shape = (1,16), input_shape = (None, 16)))
 #model.add(layers.Reshape(target_shape = (1,20), input_shape = (None,20)))
 
-optimizer = Adam(lr=1e-6)
+optimizer = Adam(lr=0.0001)
 
-model.compile(optimizer = optimizer , loss = tf.keras.losses.MeanSquaredError(), metrics=["mean_squared_error"])
+model.compile(optimizer = optimizer , loss = tf.keras.losses.MeanSquaredError(), metrics=["mean_absolute_error"])
 model.summary()
 
-epochs = 50
+epochs = 200
 #batch_size = 300
 history = model.fit(x = train_dataset, y = trainlabels,  validation_data = (test_dataset, vallabels), epochs = epochs)
 val_results = []
-for data in test_dataset[0:4000]:
+for data in test_dataset:
     alt = np.expand_dims(data, axis = 0)
     print(np.shape(alt))
     pred = model.predict(alt)
@@ -63,4 +75,5 @@ for data in test_dataset[0:4000]:
 val_data = vallabels
 loss = history.history["loss"]
 valloss = history.history["val_loss"]
-np.savez("cnnmetrics.npz", validation_results = val_results, validation_data = val_data, loss = loss, valloss = valloss)
+np.savez("cnnmetrics4.npz", validation_results = val_results, validation_data = val_data, loss = loss, valloss = valloss)
+model.save("/cosma/home/durham/dc-will10/CNNmodel4")
