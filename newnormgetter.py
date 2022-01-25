@@ -1,3 +1,4 @@
+from ssl import SSLEOFError, SSLError
 from astropy.io import ascii
 from astropy.table import Table
 
@@ -260,16 +261,12 @@ def main():
         count1 += 1
         ra = ras[i]
         dec = decs[i]
-        table = ps1cone(ra,dec,radius,table="stack",release="dr1",format="json",columns=["rApFlux"],
-               baseurl="https://catalogs.mast.stsci.edu/api/v0.1/panstarrs", verbose=False)
-        table2 = ps1cone(ra,dec,radius,table="stack",release="dr1",format="json",columns=["rKronFlux"],
-               baseurl="https://catalogs.mast.stsci.edu/api/v0.1/panstarrs", verbose=False)
-        table3 = ps1cone(ra,dec,radius,table="stack",release="dr1",format="json",columns=["rPSFFlux"],
+        table = ps1cone(ra,dec,radius,table="stack",release="dr1",format="json",columns=["rApFlux", "rKronFlux", "rPSFFlux"],
                baseurl="https://catalogs.mast.stsci.edu/api/v0.1/panstarrs", verbose=False)
         try:
             Jy = float(table["data"][0][0])
-            Jy2 = float(table2["data"][0][0])
-            Jy3 = float(table3["data"][0][0])
+            Jy2 = float(table["data"][0][1])
+            Jy3 = float(table["data"][0][2])
             flux = (2.99792458*10**-5 * Jy/(6201.2**2))
             flux2 = (2.99792458*10**-5 * Jy2/(6201.2**2))
             flux3 = (2.99792458*10**-5 * Jy3/(6201.2**2))
@@ -280,14 +277,14 @@ def main():
             normsKron.append(flux2)
             normsPSF.append(flux3)
             objids2.append(obj)
-        except IndexError:
+        except IndexError or SSLError or SSLEOFError:
             continue
 
             
         current = count1 / (n_gals) * 100
         status = "{:.4f}% of {} completed.".format(current, n_gals)
         Printer(status)
-        Printer(i)
+        #Printer(i)
     np.savez("/cosma5/data/durham/dc-will10/normspanstarrs2.npz", normsAp = normsAp, normsKron = normsKron, normsPSF = normsPSF, objids = objids2)
     Printer("\n\n")
     Printer(f"FINISHED NORMS\n\n")

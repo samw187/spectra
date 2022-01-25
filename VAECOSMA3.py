@@ -132,10 +132,10 @@ class Resnet1DBlock(tf.keras.Model):
         return tf.nn.relu(x)
 
 latent_dim = 8
-"""
+
 encoder_inputs = keras.Input(shape=(1,1767))
-x = layers.Reshape(target_shape = (1,1767,), input_shape=(1,1767))(encoder_inputs)
-x=layers.Conv1D(1024,1,2, name = "firstconv", activation = "relu")(x)
+#x = layers.Reshape(target_shape = (1,1767,), input_shape=(1,1767))(encoder_inputs)
+x=layers.Conv1D(1024,1,2, name = "firstconv", activation = "relu")(encoder_inputs)
 x=Resnet1DBlock(1024,1)(x)
 x = layers.Dropout(0.5)(x)
 x=layers.Conv1D(1024,1,2, name = "secondconv", activation = "relu")(x)
@@ -144,10 +144,10 @@ x = layers.Dropout(0.5)(x)
 x=layers.Conv1D(512,1,2, name = "thirdconv", activation = "relu")(x)
 x=Resnet1DBlock(512,1)(x)
 x = layers.Dropout(0.5)(x)
-x=layers.Conv1D(1024,1,2, name = "fourthconv", activation = "relu")(x)
-x=Resnet1DBlock(1024,1)(x)
+x=layers.Conv1D(256,1,2, name = "fourthconv", activation = "relu")(x)
+x=Resnet1DBlock(256,1)(x)
 x = layers.Dropout(0.5)(x)
-x = layers.Dense(256, activation = "relu")(x)
+#x = layers.Dense(256, activation = "relu")(x)
 # No activation
 x=layers.Flatten()(x)
 z_mean = layers.Dense(latent_dim, name="z_mean")(x)
@@ -159,25 +159,25 @@ encoder.summary()
 latent_inputs = keras.Input(shape=(latent_dim,))
 #x = tf.keras.layers.InputLayer(input_shape=(latent_dim,))(latent_inputs)
 x = layers.Reshape(target_shape=(1,latent_dim))(latent_inputs)
+x = Resnet1DBlock(256,1,'decode')(x)
+x = layers.Conv1DTranspose(256,1,1, activation = "relu")(x)
+x = layers.Dropout(0.5)(x)
+x = Resnet1DBlock(512,1,'decode')(x)
+x = layers.Conv1DTranspose(512,1,1, activation = "relu")(x)
+x = layers.Dropout(0.5)(x)
 x = Resnet1DBlock(1024,1,'decode')(x)
 x = layers.Conv1DTranspose(1024,1,1, activation = "relu")(x)
 x = layers.Dropout(0.5)(x)
-x = Resnet1DBlock(32,1,'decode')(x)
-x = layers.Conv1DTranspose(32,1,1, activation = "relu")(x)
-x = layers.Dropout(0.5)(x)
-x = Resnet1DBlock(2048,1,'decode')(x)
-x = layers.Conv1DTranspose(2048,1,1, activation = "relu")(x)
-x = layers.Dropout(0.5)(x)
-x = Resnet1DBlock(128,1,'decode')(x)
-x = layers.Conv1DTranspose(128,1,1, activation = "relu")(x)
+x = Resnet1DBlock(1024,1,'decode')(x)
+x = layers.Conv1DTranspose(1024,1,1, activation = "relu")(x)
 x = layers.Dropout(0.5)(x)
 # No activation
-x = layers.Dense(2048, activation = "relu")(x)
-x = layers.Dense(1767, activation = "relu")(x)
+#x = layers.Dense(2048, activation = "relu")(x)
+x = layers.Dense(1767)(x)
 decoder_outputs = layers.Reshape(target_shape = (1,1767))(x)
 decoder = keras.Model(latent_inputs, decoder_outputs, name="decoder")
 decoder.summary()
-"""
+
 def compute_kernel(x, y):
     x_size = tf.shape(x)[0]
     y_size = tf.shape(y)[0]
@@ -191,7 +191,7 @@ def compute_mmd(x, y, sigma_sqr=1.0):
     y_kernel = compute_kernel(y, y)
     xy_kernel = compute_kernel(x, y)
     return tf.reduce_mean(x_kernel) + tf.reduce_mean(y_kernel) - 2 * tf.reduce_mean(xy_kernel)
-
+"""
 encoder_inputs = keras.Input(shape=(1,1767))
 #x = layers.Reshape(target_shape = (1,1767,), input_shape=(1,1767))(encoder_inputs)
 x=layers.Conv1D(1024,1,2, name = "firstconv", activation = "relu")(encoder_inputs)
@@ -232,7 +232,7 @@ x = layers.BatchNormalization()(x)
 x = layers.Conv1DTranspose(1767,1,1, activation = "relu")(x)
 decoder_outputs = layers.Reshape(target_shape = (1,1767))(x)
 decoder = keras.Model(latent_inputs, decoder_outputs, name="decoder")
-
+"""
 class VAE(keras.Model):
     def __init__(self, encoder, decoder, alpha = 0, lambd = 10000, **kwargs):
         super(VAE, self).__init__(**kwargs)
@@ -321,4 +321,4 @@ for i in range(len(sp)):
     zs.append(z)
     count+=1
     print(count)
-np.savez("/cosma5/data/durham/dc-will10/imglabels2.npz", labels = labels, ids = objids, zs = zs)
+np.savez("/cosma5/data/durham/dc-will10/imglabels2.npz", labels = labels, ids = objids, zs = zs, validspec = validspec)

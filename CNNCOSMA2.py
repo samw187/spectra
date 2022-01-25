@@ -21,6 +21,7 @@ train_fnames = os.listdir(base_dir)[0:50000]
 
 labelfile = np.load("/cosma5/data/durham/dc-will10/imglabels2.npz")
 labels = labelfile["labels"]
+zs = labelfile["zs"]
 trainlabels = []
 
 print(np.shape(trainlabels))
@@ -29,7 +30,7 @@ print(np.shape(trainlabels))
 print(type(trainlabels))
 
 print(np.shape(labels))
-
+trainzs = []
 trainarray = []
 valarray = []
 count = 0
@@ -38,12 +39,14 @@ for name in train_fnames:
     objid  = name.replace(".npy", "")
     ind = np.where(labelfile["ids"]==int(objid))
     label = labels[ind]
+    z = zs[ind]
     if np.shape(img) == (5,100,100) and not np.any(np.isnan(img)) and np.shape(label) == (1,16) and not np.any(np.isnan(label)):
         img = np.moveaxis(img, 0, -1)
         img = img - np.min(img)
         img /= np.max(img)
         trainlabels.append(label)
         trainarray.append(img)
+        trainzs.append(z)
         if count % 1000 == 0:
             print(f"Count: {count}")
             print(np.shape(trainlabels))
@@ -51,11 +54,11 @@ for name in train_fnames:
     count+=1 
 print(np.shape(trainarray))
 print(np.shape(trainlabels))
-c = list(zip(trainarray, trainlabels))
+c = list(zip(trainarray, trainlabels, trainzs))
 
 random.shuffle(c)
 
-trainarray, trainlabels = zip(*c)
+trainarray, trainlabels, trainzs = zip(*c)
       
 trainfrac = 0.8
 valind = int(round(trainfrac*len(trainarray)))
@@ -64,8 +67,12 @@ valarray = trainarray[valind:-1]
 trainarray = trainarray[0:valind]
 vallabels = trainlabels[valind:-1]
 trainlabels = trainlabels[0:valind]
+valzs = trainzs[valind:-1]
+trainzs = trainzs[0:valind]
 trainlabels = np.array(trainlabels)
 vallabels = np.array(vallabels)
+trainzs = np.array(trainzs)
+valzs = np.array(valzs)
 """   
 for i in range(1000):
     r = np.random.randint(0, len(trainarray))
@@ -121,7 +128,9 @@ test_dataset = tf.convert_to_tensor(valarray)
 
 trainlabels = tf.convert_to_tensor(trainlabels)
 vallabels = tf.convert_to_tensor(vallabels)
-np.savez("/cosma5/data/durham/dc-will10/CNNtensors.npz", traindata = train_dataset, testdata = test_dataset, trainlabels = trainlabels, vallabels = vallabels)
+trainzs = tf.convert_to_tensor(trainzs)
+valzs = tf.convert_to_tensor(valzs)
+np.savez("/cosma5/data/durham/dc-will10/CNNtensors.npz", traindata = train_dataset, testdata = test_dataset, trainlabels = trainlabels, vallabels = vallabels, trainzs = trainzs, valzs = valzs)
 print("TENSORS SAVED")
 import pdb; pdb.set_trace()
 def model_builder(hp):

@@ -15,8 +15,8 @@ datastuff = np.load("/cosma5/data/durham/dc-will10/CNNtensors.npz")
 train_dataset = datastuff["traindata"]
 test_dataset = datastuff["testdata"]
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-trainlabels = datastuff["trainlabels"]
-vallabels = datastuff["vallabels"]
+trainlabels = datastuff["trainzs"]
+vallabels = datastuff["valzs"]
 print(np.shape(trainlabels))
 
 print(np.shape(vallabels))
@@ -54,8 +54,8 @@ model.add(layers.BatchNormalization())
 model.add(layers.Flatten())
 model.add(layers.Dense(2048))
 model.add(layers.Dense(2048))
-model.add(layers.Dense(16))
-model.add(layers.Reshape(target_shape = (1,16), input_shape = (None, 16)))
+model.add(layers.Dense(8))
+model.add(layers.Reshape(target_shape = (1,8), input_shape = (None, 8)))
 #model.add(layers.Reshape(target_shape = (1,20), input_shape = (None,20)))
 
 optimizer = Adam(lr=0.0001)

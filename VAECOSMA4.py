@@ -105,6 +105,21 @@ class Resnet1DBlock(tf.keras.Model):
         x += input_tensor
         return tf.nn.relu(x)
 
+def compute_kernel(x, y):
+    x_size = tf.shape(x)[0]
+    y_size = tf.shape(y)[0]
+    dim = tf.shape(x)[1]
+    tiled_x = tf.tile(tf.reshape(x, tf.stack([x_size, 1, dim])), tf.stack([1, y_size, 1]))
+    tiled_y = tf.tile(tf.reshape(y, tf.stack([1, y_size, dim])), tf.stack([x_size, 1, 1]))
+    return tf.exp(-tf.reduce_mean(tf.square(tiled_x - tiled_y), axis=2)/ tf.cast(dim, tf.float32))
+
+def compute_mmd(x, y, sigma_sqr=1.0):
+    x_kernel = compute_kernel(x, x)
+    y_kernel = compute_kernel(y, y)
+    xy_kernel = compute_kernel(x, y)
+    return tf.reduce_mean(x_kernel) + tf.reduce_mean(y_kernel) - 2 * tf.reduce_mean(xy_kernel)
+
+
 class VAE(keras.Model):
     def __init__(self, encoder, decoder, **kwargs):
         super(VAE, self).__init__(**kwargs)
@@ -114,14 +129,14 @@ class VAE(keras.Model):
         self.reconstruction_loss_tracker = keras.metrics.Mean(
             name="reconstruction_loss"
         )
-        self.kl_loss_tracker = keras.metrics.Mean(name="kl_loss")
+        self.mmd_loss_tracker = keras.metrics.Mean(name="mmd_loss")
 
     @property
     def metrics(self):
         return [
             self.total_loss_tracker,
             self.reconstruction_loss_tracker,
-            self.kl_loss_tracker,
+            self.mmd_loss_tracker,
         ]
 
     def train_step(self, data):
@@ -133,18 +148,20 @@ class VAE(keras.Model):
                     keras.losses.MSE(data, reconstruction)
                 )
             )
+            mmd_loss = compute_mmd(true_samples, z)
             kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
             kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
-            total_loss = reconstruction_loss + kl_loss
+            #total_loss = reconstruction_loss + (1-self.alpha)*kl_loss + (self.lambd+self.alpha-1)*mmd_loss
+            total_loss = reconstruction_loss + mmd_loss
         grads = tape.gradient(total_loss, self.trainable_weights)
         self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
         self.total_loss_tracker.update_state(total_loss)
         self.reconstruction_loss_tracker.update_state(reconstruction_loss)
-        self.kl_loss_tracker.update_state(kl_loss)
+        self.mmd_loss_tracker.update_state(mmd_loss)
         return {
             "loss": self.total_loss_tracker.result(),
             "reconstruction_loss": self.reconstruction_loss_tracker.result(),
-            "kl_loss": self.kl_loss_tracker.result(),
+            "mmd_loss": self.mmd_loss_tracker.result(),
         }
         
     def test_step(self, data):
