@@ -20,10 +20,10 @@ import time
 import sys
 import urllib
 from astroquery.sdss import SDSS
-data = np.load("/cosma/home/durham/dc-will10/spec64new4.npz")
+data = np.load("/cosma5/data/durham/dc-will10/spec70new5.npz")
 coords = np.load("/cosma/home/durham/dc-will10/spectra/speccoords.npz")
-ra = coords["ra"]
-dec = coords["dec"]
+ra = data["ra"]
+dec = data["dec"]
 objid = data["objid"]
 
 a = np.array(ra)
@@ -58,7 +58,7 @@ def cmdline():
     parser.add_option(
         "--output",
         dest="output",
-        default=f"{PATH}/Image_data",
+        default=f"{PATH}/Image_data100ex",
         help="Path to save image data",
     )
     parser.add_option("--size", dest="size", default=100, help="Default size of images")
@@ -206,7 +206,7 @@ def main():
                 #norms[count1] = norm
                 #count1+=1
                 #time.sleep(0.001)
-                #delete_files([files_of_interest[0], files_of_interest[2], files_of_interest[3], files_of_interest[4]])
+                delete_files(files_of_interest)
             except (urllib.error.HTTPError, urllib.error.URLError):
                 pass
         current = count1 / (n_gals/10) * 100

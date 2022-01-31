@@ -1,3 +1,4 @@
+from re import S
 from urllib.parse import _NetlocResultMixinStr
 from IPython import display
 
@@ -30,11 +31,14 @@ import time
 import IPython.display as ipd
 
 data = np.load("/cosma/home/durham/dc-will10/spec64new4.npz")
-proper = np.load("/cosma/home/durham/dc-will10/spectra/properspecs.npz")
+proper = np.load("/cosma5/data/durham/dc-will10/exKronSpectra.npz")
 #norms = np.load("/cosma/home/durham/dc-will10/spectra/normspanstarrs.npz")
-spec = data["spectra"]
+#spec = data["spectra"]
+#for i in range(len(spec)):
+ #   spec[i] = spec[i] /np.max(spec[i])
+spec = proper["spectra"]
 for i in range(len(spec)):
-    spec[i] = spec[i] /np.max(spec[i])
+    spec[i] = spec[i]/proper["norms"][i] 
 """
 objids = proper["objid"]
 
@@ -84,8 +88,8 @@ batch_size = 500
 predicts = []
 ELBOS = []
 
-train_dataset = (tf.data.Dataset.from_tensor_slices(trainspec).shuffle(ntrain).batch(batch_size))
-
+#train_dataset = (tf.data.Dataset.from_tensor_slices(trainspec).shuffle(ntrain).batch(batch_size))
+train_dataset = (tf.data.Dataset.from_tensor_slices(spec).shuffle(ntrain+nvalid).batch(batch_size))
 test_dataset = (tf.data.Dataset.from_tensor_slices(validspec)
                 .shuffle(nvalid).batch(batch_size))
 
@@ -281,19 +285,23 @@ class VAE(keras.Model):
         }
 
 vae = VAE(encoder, decoder)
-vae.compile(optimizer=keras.optimizers.Adam(lr = 1e-4), loss = "loss")
-history = vae.fit(train_dataset, epochs=550)
+vae.compile(optimizer=keras.optimizers.Adam(lr = 1e-4), loss = "loss", metrics = ["root_mean_squared_error"])
+history = vae.fit(train_dataset, epochs=700)
+vae.decoder.save("/cosma5/data/durham/dc-will10/KronVAEdecoder")
+vae.encoder.save("/cosma5/data/durham/dc-will10/KronVAEencoder")
 loss = history.history["loss"]
+mmdloss = history.history["mmd_loss"]
+reconloss = history.history["reconstruction_loss"]
 
-np.savez("vae3metrics.npz", loss = loss)
-vae.decoder.save("/cosma5/data/durham/dc-will10/newVAEdecoder")
-vae.encoder.save("/cosma5/data/durham/dc-will10/newVAEencoder")
-sp = data["spectra"]
-objids = data["objid"]
+np.savez("vae3metrics.npz", loss = loss, mmdloss = mmdloss, reconloss = reconloss)
 
-
+sp = proper["spectra"]
+objids = proper["objid"]
 for i in range(len(sp)):
-    sp[i] = sp[i]/np.max(sp[i])
+    sp[i] /= proper["norms"][i]
+
+#for i in range(len(sp)):
+ #   sp[i] = sp[i]/np.max(sp[i])
 
 sp = sp[:, np.newaxis, :]
 """
@@ -321,4 +329,4 @@ for i in range(len(sp)):
     zs.append(z)
     count+=1
     print(count)
-np.savez("/cosma5/data/durham/dc-will10/imglabels2.npz", labels = labels, ids = objids, zs = zs, validspec = validspec)
+np.savez("/cosma5/data/durham/dc-will10/imglabels2.npz", labels = labels, ids = objids, zs = zs)

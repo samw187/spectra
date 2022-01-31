@@ -42,7 +42,7 @@ normsKron = []
 normsPSF = []
 Jys = []
 coords = np.load("/cosma/home/durham/dc-will10/spectra/speccoords.npz")
-spec = np.load("/cosma5/data/durham/dc-will10/spec64new4.npz")
+spec = np.load("/cosma5/data/durham/dc-will10/spec70new5.npz")
 objids = spec["objid"]
 objids2 = []
 class Printer:
@@ -263,45 +263,53 @@ def calculate_slice(segment_number: int, data_length: int) -> Tuple[int, int]:
     return start, end
 
 def main():
-    
-    ras = coords["ra"]
-    decs = coords["dec"]
+    opt, arg = cmdline()
+    data_segment = opt.segment
+    ras = spec["ra"]
+    decs = spec["dec"]
     radius = 0.258/2000
     n_gals = len(ras)
-
+    start_of_segment, end_of_segment = calculate_slice(data_segment, n_gals)
     count1 = 0
 
-    for i in range(len(ras)):
+    for i in range(start_of_segment, end_of_segment):
         obj = objids[i]
         count1 += 1
         ra = ras[i]
         dec = decs[i]
-        table = ps1cone(ra,dec,radius,table="stack",release="dr1",format="json",columns=["rKronFlux"],
-               baseurl="https://catalogs.mast.stsci.edu/api/v0.1/panstarrs", verbose=False)
-        try:
-            Jy = float(table["data"][0][0])
-            #Jy2 = float(table["data"][0][1])
-            #Jy3 = float(table["data"][0][2])
-            flux = (2.99792458*10**-5 * Jy/(6201.2**2))
-            #flux2 = (2.99792458*10**-5 * Jy2/(6201.2**2))
-            #flux3 = (2.99792458*10**-5 * Jy3/(6201.2**2))
-            flux /= 10**-17
-            #flux2 /=10**-17
-            #flux3 /=10**-17
-            normsKron.append(flux)
-            #normsKron.append(flux2)
-            #normsPSF.append(flux3)
-            objids2.append(obj)
-        except IndexError or SSLError or SSLEOFError or HTTPError:
-            continue
+        file = np.load(f"/cosma5/data/durham/dc-will10/exdatanorms{data_segment}.npz")
+        filenorm = file["norms"]
+        fileids = file["objids"]
+        if obj not in fileids:
+            try:
+                table = ps1cone(ra,dec,radius,table="stack",release="dr2",format="json",columns=["rKronFlux"],
+                baseurl="https://catalogs.mast.stsci.edu/api/v0.1/panstarrs", verbose=False)
+                Jy = float(table["data"][0][0])
+                #Jy2 = float(table["data"][0][1])
+                #Jy3 = float(table["data"][0][2])
+                flux = (2.99792458*10**-5 * Jy/(6201.2**2))
+                #flux2 = (2.99792458*10**-5 * Jy2/(6201.2**2))
+                #flux3 = (2.99792458*10**-5 * Jy3/(6201.2**2))
+                flux /= 10**-17
+                #flux2 /=10**-17
+                #flux3 /=10**-17
+                filenorm = np.append(filenorm, flux)
+                #normsKron.append(flux)
+                #normsKron.append(flux2)
+                #normsPSF.append(flux3)
+                fileids = np.append(fileids, obj)
+                #objids2.append(obj)
+                np.savez(f"/cosma5/data/durham/dc-will10/exdatanorms{data_segment}.npz", norms = filenorm, objids = fileids)
+            except IndexError or SSLError or SSLEOFError or HTTPError:
+                np.savez(f"/cosma5/data/durham/dc-will10/exdatanorms{data_segment}.npz", norms = filenorm, objids = fileids)
+                continue
 
             
-        current = count1 / (n_gals) * 100
-        status = "{:.4f}% of {} completed.".format(current, n_gals)
+        current = count1 / (n_gals/10) * 100
+        status = "{:.4f}% of {} completed in segment {}.".format(current, n_gals/10, data_segment)
         Printer(status)
-        #Printer(i)
-    np.savez("/cosma5/data/durham/dc-will10/normspanstarrs2.npz", normsKron = normsKron, objids = objids2)
+    #np.savez("norms.npz", norms = norms, objids = objid)
     Printer("\n\n")
-    Printer(f"FINISHED NORMS\n\n")
+    Printer(f"FINISHED SEGMENT {data_segment}\n\n")
 
 main()

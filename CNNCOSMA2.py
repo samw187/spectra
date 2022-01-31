@@ -11,12 +11,12 @@ from tensorflow.keras import Model
 from tensorflow.keras.optimizers import Adam
 import keras_tuner as kt
   
-base_dir = '/cosma5/data/durham/dc-will10/Image_data'
+base_dir = '/cosma5/data/durham/dc-will10/Image_data224'
 
 
 
 
-train_fnames = os.listdir(base_dir)[0:50000]
+train_fnames = os.listdir(base_dir)
 
 
 labelfile = np.load("/cosma5/data/durham/dc-will10/imglabels2.npz")
@@ -38,9 +38,11 @@ for name in train_fnames:
     img = np.load(f"{base_dir}/{name}")
     objid  = name.replace(".npy", "")
     ind = np.where(labelfile["ids"]==int(objid))
+    if len(ind) == 0:
+        continue
     label = labels[ind]
     z = zs[ind]
-    if np.shape(img) == (5,100,100) and not np.any(np.isnan(img)) and np.shape(label) == (1,16) and not np.any(np.isnan(label)):
+    if np.shape(img) == (5,224,224) and not np.any(np.isnan(img)) and np.shape(label) == (1,16) and not np.any(np.isnan(label)):
         img = np.moveaxis(img, 0, -1)
         img = img - np.min(img)
         img /= np.max(img)

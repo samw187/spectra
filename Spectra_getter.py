@@ -21,7 +21,7 @@ from astroML.datasets.tools import get_data_home, download_with_progress_bar,\
 #BASED ON CODE FROM https://github.com/stephenportillo/SDSS-VAE/blob/master/compute_sdss_pca.py
 
 
-def fetch_sdss_spectrum1(plate, mjd, fiber, data_home=None,
+def fetch_sdss_spectrum1(plate, mjd, fiber, data_home="/cosma5/data/durham/dc-will10/astroMLdata",
                         download_if_missing=True,
                         cache_to_disk=True):
     """Fetch an SDSS spectrum from the Data Archive Server
@@ -71,7 +71,8 @@ def fetch_sdss_spectrum1(plate, mjd, fiber, data_home=None,
 
     return SDSSfits(buf), target_file
 
-data1 = pd.read_csv("highmaggalaxies.csv")
+
+data1 = pd.read_csv("/cosma5/data/durham/dc-will10/FullGalList.csv")
 
 def fetch_and_shift_spectra(n_spectra,
                             outfile,
@@ -114,8 +115,8 @@ def fetch_and_shift_spectra(n_spectra,
     plates = np.zeros(n_spectra, dtype=np.int32)
     mjds = np.zeros(n_spectra, dtype=np.int32)
     fibers = np.zeros(n_spectra, dtype=np.int32)
-    ras = np.zeros(n_spectra, dtype = np.int32)
-    decs = np.zeros(n_spectra, dtype = np.int32)
+    ras = np.zeros(n_spectra, dtype = np.float32)
+    decs = np.zeros(n_spectra, dtype = np.float32)
     objids = np.zeros(n_spectra, dtype = np.int64)
     normfactors = []
 
@@ -131,9 +132,9 @@ def fetch_and_shift_spectra(n_spectra,
         sys.stdout.write(' %i / %i spectra\r' % (i + 1, n_spectra))
         sys.stdout.flush()
         try:
-            spec, fileext = fetch_sdss_spectrum1(plate[i], mjd[i], fiber[i])
+            spec, fileext = fetch_sdss_spectrum1(plate[i], mjd[i], fiber[i], data_home="/cosma5/data/durham/dc-will10/astroMLdata")
             spec1 = XSpectrum1D.from_file(fileext) 
-            xid = SDSS.query_specobj(plate = plate[i], mjd = mjd[i], fiberID = fiber[i])
+            xid = SDSS.query_specobj(plate = plate[i], mjd = mjd[i], fiberID = fiber[i], cache = False)
         except HTTPError:
             num_skipped += 1
             print("%i, %i, %i not found" % (plate[i], mjd[i], fiber[i]))
@@ -148,7 +149,12 @@ def fetch_and_shift_spectra(n_spectra,
             print("Spectrum did not have good pixels")
             continue
             
+        try:
+            objids[j] = int(xid["objid"].data)
 
+        except KeyError:
+            num_skipped += 1
+            print("No available Object ID")
 
         #if spec.z < zlim[0] or spec.z > zlim[1]:
          #   num_skipped += 1
@@ -238,4 +244,4 @@ def fetch_and_shift_spectra(n_spectra,
              objid = objids[:N])
     
 
-fetch_and_shift_spectra(len(data1["plate"]), 'spec64new4.npz', 3800, 9200, 150)
+fetch_and_shift_spectra(70000, '/cosma5/data/durham/dc-will10/spec70new5.npz', 3800, 9200, 150)
