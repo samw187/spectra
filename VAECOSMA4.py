@@ -18,14 +18,12 @@ import time
 import random
 
 data = np.load("/cosma/home/durham/dc-will10/spec64new4.npz")
-norms = np.load("/cosma/home/durham/dc-will10/normsfinal.npz")["norms"]
-spec = data["spectra"][0:50000]
-for i in range(len(spec)):
-    spec[i] = spec[i] / data["norms"][i]
-    spec[i] = spec[i] / np.max(spec[i])
-    #spec[i] = scipy.ndimage.median_filter(spec[i], size=10)
-    #spec[i] = spec[i] - np.min(spec[i])
-    #spec[i] /= np.max(spec[i])
+proper = np.load("/cosma5/data/durham/dc-will10/exKronSpectra.npz")
+#norms = np.load("/cosma/home/durham/dc-will10/spectra/normspanstarrs.npz")
+#spec = data["spectra"]
+#for i in range(len(spec)):
+ #   spec[i] = spec[i] /np.max(spec[i])
+spec = proper["normspec"]
 spec = np.expand_dims(spec, axis=1)
 print(np.shape(spec))
 wavelengths = data["wavelengths"]
@@ -54,16 +52,16 @@ np.savez('datasplit.npz', trainidx=trainidx, valididx=valididx)
 
 #CHOOSE A BATCH SIZE AND SPLI THE DATA INTO TRAINING AND TEST DATA
 print(np.shape(validspec))
-batch_size = 1000
+batch_size = 500
 predicts = []
 ELBOS = []
 
-#train_dataset = (tf.data.Dataset.from_tensor_slices(trainspec).shuffle(train_size).batch(batch_size))
-train_dataset = tf.convert_to_tensor(trainspec)
-test_dataset = tf.convert_to_tensor(validspec)
+train_dataset = (tf.data.Dataset.from_tensor_slices(trainspec).shuffle(ntrain).batch(batch_size))
+#train_dataset = tf.convert_to_tensor(trainspec)
+#test_dataset = tf.convert_to_tensor(validspec)
 #train_dataset = (tf.data.Dataset.from_tensor_slices(trainspec).shuffle(train_size))
 
-#test_dataset = (tf.data.Dataset.from_tensor_slices(validspec).shuffle(test_size))
+test_dataset = (tf.data.Dataset.from_tensor_slices(validspec).shuffle(nvalid))
 
 class Sampling(layers.Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
@@ -143,6 +141,7 @@ class VAE(keras.Model):
         with tf.GradientTape() as tape:
             z_mean, z_log_var, z = self.encoder(data)
             reconstruction = self.decoder(z)
+            true_samples = tf.random.normal(tf.stack([batch_size, 8]))
             reconstruction_loss = tf.reduce_mean(
                 tf.reduce_sum(
                     keras.losses.MSE(data, reconstruction)
@@ -164,24 +163,6 @@ class VAE(keras.Model):
             "mmd_loss": self.mmd_loss_tracker.result(),
         }
         
-    def test_step(self, data):
-        if isinstance(data, tuple):
-            data = data[0]
-        z_mean, z_log_var, z = self.encoder(data)
-        reconstruction = self.decoder(z)
-        reconstruction_loss = tf.reduce_mean(
-                tf.reduce_sum(
-                    keras.losses.MSE(data, reconstruction)
-                )
-            )
-        kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
-        kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
-        total_loss = reconstruction_loss + kl_loss
-        return {
-            "valloss": total_loss,
-            "valreconstruction_loss": reconstruction_loss,
-            "valkl_loss": kl_loss,
-        }
     """
     def call(self, inputs):
         z_mean, z_log_var, z = self.encoder(inputs)
@@ -200,25 +181,30 @@ class VAE(keras.Model):
         return reconstruction
         """
 def model_builder(hp):
-    latent_dim = hp.Choice("latent_dim", values = [6])
+    latent_dim = 8
     filters1 = hp.Choice("filters1", values = [32,64,128,256,512, 1024, 2048])
     filters2 = hp.Choice("filters2", values = [32,64,128,256,512, 1024, 2048])
     filters3 = hp.Choice("filters3", values = [32,64,128,256,512, 1024, 2048])
     filters4 = hp.Choice("filters4", values = [32,64,128,256,512, 1024, 2048])
+    kernel1 = hp.Choice("kernel1", values = [1,2,3])
+    kernel2 = hp.Choice("kernel2", values = [1,2,3])
+    kernel3 = hp.Choice("kernel3", values = [1,2,3])
+    kernel4 = hp.Choice("kernel4", values = [1,2,3])
+
     dr = hp.Choice("dropout_rate", values = [0.4,0.6,0.8])
     encoder_inputs = keras.Input(shape=(1,1767))
-    x = layers.Reshape(target_shape = (1,1767,), input_shape=(1,1767))(encoder_inputs)
-    x=layers.Conv1D(filters1,1,2, name = "firstconv", activation = "relu")(x)
-    x=Resnet1DBlock(filters1,1)(x)
+    #x = layers.Reshape(target_shape = (1,1767,), input_shape=(1,1767))(encoder_inputs)
+    x=layers.Conv1D(filters1,kernel1,2, name = "firstconv", activation = "relu")(encoder_inputs)
+    x=Resnet1DBlock(filters1,kernel1)(x)
     x=layers.Dropout(dr)(x)
-    x=layers.Conv1D(filters2,1,2, name = "secondconv", activation = "relu")(x)
-    x=Resnet1DBlock(filters2,1)(x)
+    x=layers.Conv1D(filters2,kernel2,2, name = "secondconv", activation = "relu")(x)
+    x=Resnet1DBlock(filters2,kernel2)(x)
     x=layers.Dropout(dr)(x)
-    x=layers.Conv1D(filters3,1,2, name = "thirdconv", activation = "relu")(x)
-    x=Resnet1DBlock(filters3,1)(x)
+    x=layers.Conv1D(filters3,kernel3,2, name = "thirdconv", activation = "relu")(x)
+    x=Resnet1DBlock(filters3,kernel3)(x)
     x=layers.Dropout(dr)(x)
-    x=layers.Conv1D(filters4,1,2, name = "fourthconv", activation = "relu")(x)
-    x=Resnet1DBlock(filters4,1)(x)
+    x=layers.Conv1D(filters4,kernel4,2, name = "fourthconv", activation = "relu")(x)
+    x=Resnet1DBlock(filters4,kernel4)(x)
     # No activation
     x=layers.Flatten()(x)
     z_mean = layers.Dense(latent_dim, name="z_mean")(x)
@@ -234,21 +220,25 @@ def model_builder(hp):
     filters6 = hp.Choice("filters6", values = [32,64,128,256,512, 1024, 2048])
     filters7 = hp.Choice("filters7", values = [32,64,128,256,512, 1024, 2048])
     filters8 = hp.Choice("filters8", values = [32,64,128,256,512, 1024, 2048])
+    kernel5 = hp.Choice("kernel5", values = [1,2,3])
+    kernel6 = hp.Choice("kernel6", values = [1,2,3])
+    kernel7 = hp.Choice("kernel7", values = [1,2,3])
+    kernel8 = hp.Choice("kernel8", values = [1,2,3])
 
     latent_inputs = keras.Input(shape=(latent_dim,))
     #x = tf.keras.layers.InputLayer(input_shape=(latent_dim,))(latent_inputs)
     x = layers.Reshape(target_shape=(1,latent_dim))(latent_inputs)
-    x = Resnet1DBlock(filters5,1,'decode')(x)
-    x = layers.Conv1DTranspose(filters5,1,1, activation = "relu")(x)
+    x = Resnet1DBlock(filters5,kernel5,'decode')(x)
+    x = layers.Conv1DTranspose(filters5,kernel5,1, activation = "relu")(x)
     x=layers.Dropout(dr)(x)
-    x = Resnet1DBlock(filters6,1,'decode')(x)
-    x = layers.Conv1DTranspose(filters6,1,1, activation = "relu")(x)
+    x = Resnet1DBlock(filters6,kernel6,'decode')(x)
+    x = layers.Conv1DTranspose(filters6,kernel6,1, activation = "relu")(x)
     x=layers.Dropout(dr)(x)
-    x = Resnet1DBlock(filters7,1,'decode')(x)
-    x = layers.Conv1DTranspose(filters7,1,1, activation = "relu")(x)
+    x = Resnet1DBlock(filters7,kernel7,'decode')(x)
+    x = layers.Conv1DTranspose(filters7,kernel7,1, activation = "relu")(x)
     x=layers.Dropout(dr)(x)
-    x = Resnet1DBlock(filters8,1,'decode')(x)
-    x = layers.Conv1DTranspose(filters8,1,1, activation = "relu")(x)
+    x = Resnet1DBlock(filters8,kernel8,'decode')(x)
+    x = layers.Conv1DTranspose(filters8,kernel8,1, activation = "relu")(x)
     # No activation
     x = layers.Conv1DTranspose(1767,1,1, activation = "relu")(x)
     decoder_outputs = layers.Reshape(target_shape = (1,1767))(x)
@@ -261,7 +251,7 @@ def model_builder(hp):
     return model
 
 def model_builder2(hp):
-    latent_dim = hp.Choice("latent_dim", values = [6])
+    latent_dim = hp.Choice("latent_dim", values = [8])
     units1 = hp.Choice("units1", values = [32,64,128,256,512, 1024, 2048])
     units2 = hp.Choice("units2", values = [32,64,128,256,512, 1024, 2048])
     units3 = hp.Choice("units3", values = [32,64,128,256,512, 1024, 2048])
@@ -274,12 +264,16 @@ def model_builder2(hp):
     encoder_inputs = keras.Input(shape=(1,1767))
     x = layers.Reshape(target_shape = (1767,), input_shape=(1,1767))(encoder_inputs)
     x=layers.Dense(units1, name = "firstdense")(x)
+    x = layers.LeakyReLU(0.3)(x)
     x=layers.Dropout(dr)(x)
     x=layers.Dense(units2, name = "seconddense")(x)
+    x = layers.LeakyReLU(0.3)(x)
     x=layers.Dropout(dr)(x)
     x=layers.Dense(units3, name = "thirdddense")(x)
+    x = layers.LeakyReLU(0.3)(x)
     x=layers.Dropout(dr)(x)
     x=layers.Dense(units4, name = "fourthdense")(x)
+    x = layers.LeakyReLU(0.3)(x)
     x=layers.Dropout(dr)(x)
     # No activation
     z_mean = layers.Dense(latent_dim, name="z_mean")(x)
@@ -290,12 +284,16 @@ def model_builder2(hp):
     latent_inputs = keras.Input(shape=(latent_dim,))
     #x = tf.keras.layers.InputLayer(input_shape=(latent_dim))(latent_inputs)
     x=layers.Dense(units5, name = "fifthdense")(latent_inputs)
+    x = layers.LeakyReLU(0.3)(x)
     x=layers.Dropout(dr)(x)
     x=layers.Dense(units6, name = "sixthdense")(x)
+    x = layers.LeakyReLU(0.3)(x)
     x=layers.Dropout(dr)(x)
     x=layers.Dense(units7, name = "seventhdense")(x)
+    x = layers.LeakyReLU(0.3)(x)
     x=layers.Dropout(dr)(x)
     x=layers.Dense(units8, name = "eigthdense")(x)
+    x = layers.LeakyReLU(0.3)(x)
     x=layers.Dropout(dr)(x)
     # No activation
     x = layers.Dense(units = 1767)(x)
@@ -309,7 +307,7 @@ def model_builder2(hp):
     return model
 
 def model_builder3(hp):
-    latent_dim = hp.Choice("latent_dim", values = [6, 8, 10])
+    latent_dim = hp.Choice("latent_dim", values = [8])
     filters1 = hp.Choice("filters1", values = [32,64,128,256,512, 1024, 2048])
     filters2 = hp.Choice("filters2", values = [32,64,128,256,512, 1024, 2048])
     filters3 = hp.Choice("filters2", values = [32,64,128,256,512, 1024, 2048])
@@ -369,28 +367,36 @@ def model_builder3(hp):
 
 
 
-tuner = kt.BayesianOptimization(model_builder3,objective=kt.Objective("reconstruction_loss", direction="min"),max_trials=5,directory= "/cosma5/data/durham/dc-will10" ,project_name='vae_ktpooled')
+tuner = kt.BayesianOptimization(model_builder,objective=kt.Objective("reconstruction_loss", direction="min"),max_trials=25,directory= "/cosma5/data/durham/dc-will10" ,project_name='vae_ktconv1d')
 
-stop_early = tf.keras.callbacks.EarlyStopping(monitor='reconstruction_loss', patience=10)
+stop_early = tf.keras.callbacks.EarlyStopping(monitor='reconstruction_loss', patience=15)
 
-tuner.search(train_dataset, epochs=150, callbacks = [stop_early])
+tuner.search(train_dataset, epochs=700, callbacks = [stop_early])
 
 best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
 print(best_hps.get("latent_dim"))
 ld = best_hps.get("latent_dim")
 model = tuner.hypermodel.build(best_hps)
 model.compile(loss = "loss")
-history = model.fit(train_dataset, epochs=100, callbacks = [stop_early])
+history = model.fit(train_dataset, epochs=800, callbacks = [stop_early])
 #model.call(inputs = (1,1767))
 #model.build(input = (1,1767))
-model.decoder.save("/cosma/home/durham/dc-will10/spectra/VAEdecoder")
-model.encoder.save("/cosma/home/durham/dc-will10/spectra/VAEencoder")
+model.decoder.save("/cosma5/data/durham/dc-will10/VAEdecoderConv")
+model.encoder.save("/cosma5/data/durham/dc-will10/VAEencoderConv")
+loss = history.history["loss"]
+mmdloss = history.history["mmd_loss"]
+reconloss = history.history["reconstruction_loss"]
+
+np.savez("vae4metrics.npz", loss = loss, mmdloss = mmdloss, reconloss = reconloss)
 #model.save("/cosma/home/durham/dc-will10/spectra/VAEmodel")
-sp = data["spectra"]
-for i in range(len(spec)):
-    sp[i] = sp[i] / data["norms"][i]
-    sp[i] = sp[i] / np.max(sp[i])
-objids = data["objid"]
+sp = proper["spectra"]
+objids = proper["objid"]
+for i in range(len(sp)):
+    sp[i] /= proper["norms"][i]
+
+#for i in range(len(sp)):
+ #   sp[i] = sp[i]/np.max(sp[i])
+
 sp = sp[:, np.newaxis, :]
 
 
@@ -406,4 +412,4 @@ for i in range(len(sp)):
     zs.append(z)
     count+=1
     print(count)
-np.savez("imglabels.npz", labels = labels, ids = objids, zs = zs)
+np.savez("/cosma5/data/durham/dc-will10/imglabels.npz", labels = labels, ids = objids, zs = zs)

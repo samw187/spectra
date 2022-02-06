@@ -81,6 +81,8 @@ newtrain = tf.concat([newtrain,extratrain], axis = 0)
 newlabels = tf.concat([newlabels, extralabels], axis = 0)
 print(tf.shape(newtrain))
 """
+
+"""
 model = tf.keras.models.Sequential()
 model.add(layers.Conv2D(64, 3, input_shape = (224,224,5),activation = "relu") )
 model.add(layers.Conv2D(64, 3,activation = "relu" ))
@@ -118,8 +120,41 @@ model.add(layers.Dropout(0.8))
 model.add(layers.Dense(16))
 model.add(layers.Reshape(target_shape = (1,16), input_shape = (None, 16)))
 #model.add(layers.Reshape(target_shape = (1,20), input_shape = (None,20)))
+"""
 
-optimizer = Adam(lr=0.0001)
+model = tf.keras.models.Sequential()
+model.add(layers.Conv2D(16, 3, input_shape = (100,100,5)) )
+model.add(layers.LeakyReLU(0.4))
+#model.add(layers.BatchNormalization())
+model.add(layers.MaxPool2D(pool_size=(2,2)))
+model.add(layers.Dropout(0.8))
+model.add(layers.Conv2D(32, 3))
+model.add(layers.LeakyReLU(0.4))
+#model.add(layers.BatchNormalization())
+model.add(layers.MaxPool2D(pool_size=(2,2)))
+model.add(layers.Dropout(0.5))
+model.add(layers.Conv2D(64, 3 ))
+model.add(layers.LeakyReLU(0.4))
+#model.add(layers.BatchNormalization())
+model.add(layers.MaxPool2D(pool_size=(2,2)))
+model.add(layers.Dropout(0.5))
+#model.add(layers.Conv2D(64, 3,activation = "relu" ))
+#model.add(layers.BatchNormalization())
+#model.add(layers.MaxPool2D(pool_size=(2,2)))
+#model.add(layers.Dropout(0.5))
+#model.add(tfa.layers.InstanceNormalization())  
+model.add(layers.Flatten())
+#model.add(layers.Dense(1024))
+#model.add(layers.LeakyReLU(0.4))
+model.add(layers.Dense(512))
+#model.add(layers.LeakyReLU(0.4))
+#model.add(layers.Dropout(0.5))
+#model.add(layers.Dense(256))
+#model.add(layers.LeakyReLU(0.4))
+model.add(layers.Dense(16))
+model.add(layers.Reshape(target_shape = (1,16), input_shape = (None, 16)))
+#model.add(layers.Reshape(target_shape = (1,20), input_shape = (None,20)))
+optimizer = Adam(lr=0.001)
 
 model.compile(optimizer = optimizer , loss = tf.keras.losses.MeanSquaredError(), metrics=["mean_absolute_error"])
 model.summary()
@@ -128,6 +163,7 @@ epochs = 200
 #batch_size = 300
 history = model.fit(x = train_dataset, y = trainlabels,  validation_data = (test_dataset, vallabels), epochs = epochs)
 val_results = []
+model.save("/cosma/home/durham/dc-will10/CNNmodel4")
 for data in test_dataset:
     alt = np.expand_dims(data, axis = 0)
     print(np.shape(alt))
@@ -137,4 +173,3 @@ val_data = vallabels
 loss = history.history["loss"]
 valloss = history.history["val_loss"]
 np.savez("cnnmetrics4.npz", validation_results = val_results, validation_data = val_data, loss = loss, valloss = valloss)
-model.save("/cosma/home/durham/dc-will10/CNNmodel4")
