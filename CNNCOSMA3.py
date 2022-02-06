@@ -229,20 +229,146 @@ def model_builder2(hp):
 
     return model
 
+def model_builder3(hp):
+    num_convlayers = hp.Choice("num_layers", values = [3,4,5])
+    num_denselayers = hp.Choice("dense_layers", values = [0,1,2])
+    kernel1 = hp.Choice("kernel1", values = [1,2,3,4,5])
+    kernel2 = hp.Choice("kernel2", values = [1,2,3,4,5])
+    kernel3 = hp.Choice("kernel3", values = [1,2,3,4,5])
+    filters1 = hp.Choice("filters1", values = [8,16,32,64,128,256,512,1024,2048])
+    filters2 = hp.Choice("filters2", values = [8,16,32,64,128,256,512,1024,2048])
+    filters3 = hp.Choice("filters3", values = [8,16,32,64,128,256,512,1024,2048])
+    activation1 = hp.Choice("activation1", values = ["linear", "relu", "leakyrelu"])
+    activation2 = hp.Choice("activation2", values = ["linear", "relu", "leakyrelu"])
+    activation3 = hp.Choice("activation3", values = ["linear", "relu", "leakyrelu"])
+    bn1 = hp.Choice("batchnorm1", values = [True, False])
+    bn2 = hp.Choice("batchnorm2", values = [True, False])
+    bn3 = hp.Choice("batchnorm3", values = [True, False])
+    pooling1 = hp.Choice("pooling1", values = [True, False])
+    pooling2 = hp.Choice("pooling2", values = [True, False])
+    pooling3 = hp.Choice("pooling3", values = [True, False])
+    dr1 = hp.Choice("dropout1", values = [0,0.2,0.4,0.5,0.6])
+    dr2 = hp.Choice("dropout1", values = [0,0.2,0.4,0.5,0.6])
+    dr3 = hp.Choice("dropout1", values = [0,0.2,0.4,0.5,0.6])
+    model = tf.keras.models.Sequential()
+    model.add(layers.Convolution2D(filters1, kernel1,input_shape=(100,100,5)))
+    if activation1 == "relu":
+        model.add(layers.ReLU())
+    if activation1 == "leakyrelu":
+        model.add(layers.LeakyReLU())
+    if bn1 == True:
+        model.add(layers.BatchNormalization())
+    if pooling1 == True:
+        model.add(layers.MaxPool2D((2,2)))
+    model.add(layers.Dropout(dr1))
+    model.add(layers.Convolution2D(filters2, kernel2))
+    if activation2 == "relu":
+        model.add(layers.ReLU())
+    if activation2 == "leakyrelu":
+        model.add(layers.LeakyReLU())
+    if bn2 == True:
+        model.add(layers.BatchNormalization())
+    if pooling2 == True:
+        model.add(layers.MaxPool2D((2,2)))
+    model.add(layers.Dropout(dr2))
+    model.add(layers.Convolution2D(filters3, kernel3))
+    if activation3 == "relu":
+        model.add(layers.ReLU())
+    if activation3 == "leakyrelu":
+        model.add(layers.LeakyReLU())
+    if bn3 == True:
+        model.add(layers.BatchNormalization())
+    if pooling3 == True:
+        model.add(layers.MaxPool2D((2,2)))
+    model.add(layers.Dropout(dr3))
+    if num_convlayers >= 4:
+        kernel4 = hp.Choice("kernel4", values = [1,2,3,4,5])
+        filters4 = hp.Choice("filters4", values = [8,16,32,64,128,256,512,1024,2048])
+        activation4 = hp.Choice("activation4", values = ["linear", "relu", "leakyrelu"])
+        bn4 = hp.Choice("batchnorm4", values = [True, False])
+        pooling4 = hp.Choice("pooling4", values = [True, False])
+        dr4 = hp.Choice("dropout4", values = [0,0.2,0.4,0.5,0.6])
+        model.add(layers.Convolution2D(filters4, kernel4))
+        if activation4 == "relu":
+            model.add(layers.ReLU())
+        if activation4 == "leakyrelu":
+            model.add(layers.LeakyReLU())
+        if bn4 == True:
+            model.add(layers.BatchNormalization())
+        if pooling4 == True:
+            model.add(layers.MaxPool2D((2,2)))
+        model.add(layers.Dropout(dr4))
+    if num_convlayers >= 5:
+        kernel5 = hp.Choice("kernel5", values = [1,2,3,4,5])
+        filters5 = hp.Choice("filters5", values = [8,16,32,64,128,256,512,1024,2048])
+        activation5 = hp.Choice("activation5", values = ["linear", "relu", "leakyrelu"])
+        bn5 = hp.Choice("batchnorm5", values = [True, False])
+        pooling5 = hp.Choice("pooling5", values = [True, False])
+        dr5 = hp.Choice("dropout5", values = [0,0.2,0.4,0.5,0.6])
+        model.add(layers.Convolution2D(filters5, kernel5))
+        if activation5 == "relu":
+            model.add(layers.ReLU())
+        if activation5 == "leakyrelu":
+            model.add(layers.LeakyReLU())
+        if bn5 == True:
+            model.add(layers.BatchNormalization())
+        if pooling5 == True:
+            model.add(layers.MaxPool2D((2,2)))
+        model.add(layers.Dropout(dr5))
+    model.add(layers.Flatten())
+    if num_denselayers >= 1:
+        units1 = hp.Choice("units1", values = [32,64,128,256,512,1024])
+        activation6 = hp.Choice("activation6", values = ["linear", "relu", "leakyrelu"])
+        bn6 = hp.Choice("batchnorm6", values = [True, False])
+        dr6 = hp.Choice("dropout6", values = [0,0.2,0.4,0.5,0.6])
+        model.add(layers.Dense(units1))
+        if activation6 == "relu":
+            model.add(layers.ReLU())
+        if activation6 == "leakyrelu":
+            model.add(layers.LeakyReLU())
+        if bn6 == True:
+            model.add(layers.BatchNormalization())
+        model.add(layers.Dropout(dr6))
+    
+    if num_denselayers >= 2:
+        units2 = hp.Choice("units2", values = [32,64,128,256,512,1024])
+        activation7 = hp.Choice("activation7", values = ["linear", "relu", "leakyrelu"])
+        bn7 = hp.Choice("batchnorm7", values = [True, False])
+        dr7 = hp.Choice("dropout7", values = [0,0.2,0.4,0.5,0.6])
+        model.add(layers.Dense(units2))
+        if activation7 == "relu":
+            model.add(layers.ReLU())
+        if activation7 == "leakyrelu":
+            model.add(layers.LeakyReLU())
+        if bn7 == True:
+            model.add(layers.BatchNormalization())
+        model.add(layers.Dropout(dr7))
+    model.add(layers.Dense(units = 16))
+    model.add(layers.Reshape(target_shape = (1,16), input_shape = (None, 16)))
+    hp_learning_rate = hp.Choice('learning_rate', values=[1e-4, 1e-3])
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp_learning_rate),
+                loss=tf.keras.losses.MeanSquaredError())
+    
+    print(model.summary())
 
-tuner = kt.BayesianOptimization(model_builder,
+    return model
+
+reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss",factor=0.2,patience=10,verbose=1,
+    mode="auto",min_delta=0.0001,cooldown=0,min_lr=0)
+
+tuner = kt.BayesianOptimization(model_builder3,
                      objective='val_loss',
-                     max_trials=15,
+                     max_trials=40,
                      directory= "/cosma5/data/durham/dc-will10" ,
-                     project_name='cnn_ktprop')
+                     project_name='cnn_ktuner3')
 
-stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=15)
+stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=20)
 
-tuner.search(train_dataset,trainlabels,epochs=200,validation_data=(test_dataset,vallabels), callbacks = [stop_early])
+tuner.search(train_dataset,trainlabels,epochs=200,validation_data=(test_dataset,vallabels), callbacks = [stop_early, reduce_lr])
 print("SEARCH COMPLETE")
 best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
 model = tuner.hypermodel.build(best_hps)
-history = model.fit(train_dataset,trainlabels, epochs=100, validation_data = (test_dataset, vallabels))
+history = model.fit(train_dataset,trainlabels, epochs=400, validation_data = (test_dataset, vallabels), callbacks = [stop_early, reduce_lr])
 print("MODEL FITTED")
 model.save("/cosma5/data/durham/dc-will10/CNNmodel")
 val_results = []
