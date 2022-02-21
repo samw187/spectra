@@ -95,8 +95,10 @@ ELBOS = []
 #train_dataset = (tf.data.Dataset.from_tensor_slices(trainspec).shuffle(ntrain).batch(batch_size))
 train_dataset = tf.convert_to_tensor(trainspec)
 #train_dataset = (tf.data.Dataset.from_tensor_slices(spec).shuffle(ntrain+nvalid))
-test_dataset = (tf.data.Dataset.from_tensor_slices(validspec)
-                .shuffle(nvalid).batch(batch_size))
+#test_dataset = (tf.data.Dataset.from_tensor_slices(validspec)
+          #      .shuffle(nvalid).batch(batch_size))
+test_dataset = tf.convert_to_tensor(validspec)
+tf.expand_dims(test_dataset, 1)
 tf.expand_dims(train_dataset, 1)
 np.savez('datasplit.npz', trainidx=trainidx, valididx=valididx, valdata = validspec)
 
@@ -389,28 +391,28 @@ class VAE(keras.Model):
             "kl_loss": self.kl_loss_tracker.result(),
         }
     def test_step(self, data):
+        if isinstance(data, tuple):
+            data = data[0]
+
         z_mean, z_log_var, z = self.encoder(data)
         reconstruction = self.decoder(z)
-        true_samples = tf.random.normal(tf.stack([32, latent_dim]))
+        true_samples = tf.random.normal(tf.stack([batch_size, latent_dim]))
         reconstruction_loss = tf.reduce_mean(
-            tf.reduce_sum(
-                keras.losses.MSE(data, reconstruction)
+                tf.reduce_sum(
+                    keras.losses.MSE(data, reconstruction)
+                )
             )
-        )
+        #reconstruction_loss /= 1436
+        #reconstruction_loss
         mmd_loss = compute_mmd(true_samples, z)
         kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
         kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
         #total_loss = reconstruction_loss + (1-self.alpha)*kl_loss + (self.lambd+self.alpha-1)*mmd_loss
         total_loss = reconstruction_loss + kl_loss
-        self.total_loss_tracker.update_state(total_loss)
-        self.reconstruction_loss_tracker.update_state(reconstruction_loss)
-        self.mmd_loss_tracker.update_state(mmd_loss)
-        self.kl_loss_tracker.update_state(kl_loss)
         return {
-            "loss": self.total_loss_tracker.result(),
-            "reconstruction_loss": self.reconstruction_loss_tracker.result(),
-            "mmd_loss": self.mmd_loss_tracker.result(),
-            "kl_loss": self.kl_loss_tracker.result(),
+            "loss": total_loss,
+            "reconstruction_loss": reconstruction_loss,
+            "kl_loss": kl_loss,
         }
 
 def step_decay(epoch, lr):
@@ -423,7 +425,8 @@ def step_decay(epoch, lr):
 lrate = tf.keras.callbacks.LearningRateScheduler(step_decay)
 vae = VAE(encoder, decoder)
 vae.compile(optimizer=tf.keras.optimizers.Adam(lr = 0.0001), loss = "loss", metrics = ["root_mean_squared_error"])
-history = vae.fit(train_dataset, epochs=350, batch_size = batch_size)
+#history = vae.fit(train_dataset, epochs=350, batch_size = batch_size)
+history = vae.fit(x = train_dataset, y = None, epochs=400, validation_data = (test_dataset, None))
 vae.evaluate(test_dataset)
 vae.decoder.save("/cosma5/data/durham/dc-will10/KronVAEdecoder")
 vae.encoder.save("/cosma5/data/durham/dc-will10/KronVAEencoder")

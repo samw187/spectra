@@ -12,14 +12,25 @@ from tensorflow.keras.optimizers import Adam
 import keras_tuner as kt
   
 base_dir = '/cosma5/data/durham/dc-will10/Image_data100ex'
-
+base_dir2 = '/cosma5/data/durham/dc-will10/Image_data'
 
 
 
 train_fnames = os.listdir(base_dir)
+train_fnames2 = os.listdir(base_dir2)
+nameinds = np.load("/cosma5/data/durham/dc-will10/nameinds.npz")["nameinds"]
+"""
+for i in range(len(train_fnames2)):
+    for j in range(len(train_fnames)):
+        if train_fnames2[i] == train_fnames[j]:
+            nameinds.append(i)
+    if i%1000 == 0:
+        print(i)
+"""
 
-
-labelfile = np.load("/cosma5/data/durham/dc-will10/imglabels2.npz")
+for i in sorted(nameinds, reverse=True):
+    del train_fnames2[i]
+labelfile = np.load("/cosma5/data/durham/dc-will10/imglabelsOpt.npz")
 labels = labelfile["labels"]
 zs = labelfile["zs"]
 trainlabels = []
@@ -43,7 +54,7 @@ for name in train_fnames:
         continue
     label = labels[ind]
     z = zs[ind]
-    if np.shape(img) == (5,100,100) and not np.any(np.isnan(img)) and np.shape(label) == (1,16) and not np.any(np.isnan(label)):
+    if np.shape(img) == (5,100,100) and not np.any(np.isnan(img)) and np.shape(label) == (1,12) and not np.any(np.isnan(label)):
         img = np.moveaxis(img, 0, -1)
         img = img - np.min(img)
         img /= np.max(img)
@@ -55,6 +66,29 @@ for name in train_fnames:
             print(np.shape(trainlabels))
             
     count+=1 
+print("LOADED FROM DIRECTORY 1")
+for name in train_fnames2:
+    img = np.load(f"{base_dir2}/{name}")
+    objid  = name.replace(".npy", "")
+    ind = np.where(labelfile["ids"]==int(objid))
+    if len(ind) == 0:
+        count+=1
+        continue
+    label = labels[ind]
+    z = zs[ind]
+    if np.shape(img) == (5,100,100) and not np.any(np.isnan(img)) and np.shape(label) == (1,12) and not np.any(np.isnan(label)):
+        img = np.moveaxis(img, 0, -1)
+        img = img - np.min(img)
+        img /= np.max(img)
+        trainlabels.append(label)
+        trainarray.append(img)
+        trainzs.append(z)
+        if count % 1000 == 0:
+            print(f"Count: {count}")
+            print(np.shape(trainlabels))
+            
+    count+=1 
+print("LOADED FROM DIRECTORY 2")
 print(np.shape(trainarray))
 print(np.shape(trainlabels))
 c = list(zip(trainarray, trainlabels, trainzs))
