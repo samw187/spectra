@@ -20,17 +20,17 @@ import time
 import sys
 import urllib
 from astroquery.sdss import SDSS
-data = np.load("/cosma5/data/durham/dc-will10/spec70new5.npz")
+data = np.load("/cosma5/data/durham/dc-will10/fullKronSpectra.npz")
 coords = np.load("/cosma/home/durham/dc-will10/spectra/speccoords.npz")
 ra = data["ra"]
 dec = data["dec"]
-objid = data["objid"]
+objid = np.array(data["objid"], dtype = np.int64)
 
 a = np.array(ra)
 b = np.array(dec)
 c = np.array(objid)
 norms = np.zeros(len(objid))
-size = 100
+size = 150
 
 df = pd.DataFrame({"ra" : a, "dec" : b, "objid" : c})
 df.to_csv("/cosma5/data/durham/dc-will10/imagetester.csv", index=False)
@@ -58,10 +58,10 @@ def cmdline():
     parser.add_option(
         "--output",
         dest="output",
-        default=f"{PATH}/Image_data100ex",
+        default=f"{PATH}/Image_data150",
         help="Path to save image data",
     )
-    parser.add_option("--size", dest="size", default=100, help="Default size of images")
+    parser.add_option("--size", dest="size", default=150, help="Default size of images")
     parser.add_option("--filters", dest="filters", default="grizy", help="PS1 filters to use")
     parser.add_option(
         "--cat",
@@ -76,7 +76,7 @@ def cmdline():
 
     return options, args
 
-def getimages(ra,dec,size=100,filters="grizy"):
+def getimages(ra,dec,size=150,filters="grizy"):
     
     """Query ps1filenames.py service to get a list of images
     
@@ -94,7 +94,7 @@ def getimages(ra,dec,size=100,filters="grizy"):
     return table
 
 
-def geturl(ra, dec, size=100, output_size=None, filters="grizy", format="fits", color=False):
+def geturl(ra, dec, size=150, output_size=None, filters="grizy", format="fits", color=False):
     
     """Get URL for images in the table
     
@@ -181,7 +181,7 @@ def main():
 
         if not os.path.isfile(dst):
             try:
-                urls = geturl(row.ra, row.dec, size=100, filters=filters, format=image_format)
+                urls = geturl(row.ra, row.dec, size=150, filters=filters, format=image_format)
                 files_of_interest = []
                 for i, url in enumerate(urls):
                     filename = f"/cosma5/data/durham/dc-will10/raw_images/{row.objid}_{i}.fits"

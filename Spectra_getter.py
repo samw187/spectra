@@ -78,7 +78,8 @@ def fetch_and_shift_spectra(n_spectra,
                             outfile,
                             wavemin,
                             wavemax,
-                            newvpix):
+                            newvpix,
+                            zlim=(0, 0.7)):
     """
     This function queries CAS for matching spectra, and then downloads
     them and shifts them to a common redshift binning
@@ -156,10 +157,10 @@ def fetch_and_shift_spectra(n_spectra,
             num_skipped += 1
             print("No available Object ID")
 
-        #if spec.z < zlim[0] or spec.z > zlim[1]:
-         #   num_skipped += 1
-          #  print("%i, %i, %i outside redshift range" % (plate[i], mjd[i], fiber[i]))
-           # continue
+        if spec.z < zlim[0] or spec.z > zlim[1]:
+            num_skipped += 1
+            print("%i, %i, %i outside redshift range" % (plate[i], mjd[i], fiber[i]))
+            continue
 
         if np.all(newspec.flux == 0):
             num_skipped += 1
@@ -244,4 +245,4 @@ def fetch_and_shift_spectra(n_spectra,
              objid = objids[:N])
     
 
-fetch_and_shift_spectra(70000, '/cosma5/data/durham/dc-will10/spec70new5.npz', 3800, 9200, 150)
+fetch_and_shift_spectra(80000, '/cosma5/data/durham/dc-will10/spec80new6.npz', 3800, 9200, 150, zlim = (0,0.5))

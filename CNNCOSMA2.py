@@ -10,7 +10,7 @@ from tensorflow.keras import layers
 from tensorflow.keras import Model
 from tensorflow.keras.optimizers import Adam
 import keras_tuner as kt
-  
+"""
 base_dir = '/cosma5/data/durham/dc-will10/Image_data100ex'
 base_dir2 = '/cosma5/data/durham/dc-will10/Image_data'
 
@@ -19,18 +19,14 @@ base_dir2 = '/cosma5/data/durham/dc-will10/Image_data'
 train_fnames = os.listdir(base_dir)
 train_fnames2 = os.listdir(base_dir2)
 nameinds = np.load("/cosma5/data/durham/dc-will10/nameinds.npz")["nameinds"]
-"""
-for i in range(len(train_fnames2)):
-    for j in range(len(train_fnames)):
-        if train_fnames2[i] == train_fnames[j]:
-            nameinds.append(i)
-    if i%1000 == 0:
-        print(i)
-"""
+
 
 for i in sorted(nameinds, reverse=True):
     del train_fnames2[i]
-labelfile = np.load("/cosma5/data/durham/dc-will10/imglabelsOpt.npz")
+"""
+base_dir = '/cosma5/data/durham/dc-will10/Image_data150'
+train_fnames = os.listdir(base_dir)
+labelfile = np.load("/cosma5/data/durham/dc-will10/imglabelsOptmidz.npz")
 labels = labelfile["labels"]
 zs = labelfile["zs"]
 trainlabels = []
@@ -42,6 +38,8 @@ print(type(trainlabels))
 
 print(np.shape(labels))
 trainzs = []
+trainmeans = []
+trainvars = []
 trainarray = []
 valarray = []
 count = 0
@@ -54,19 +52,21 @@ for name in train_fnames:
         continue
     label = labels[ind]
     z = zs[ind]
-    if np.shape(img) == (5,100,100) and not np.any(np.isnan(img)) and np.shape(label) == (1,12) and not np.any(np.isnan(label)):
+    if np.shape(img) == (5,150,150) and not np.any(np.isnan(img)) and np.shape(label) == (1,24) and not np.any(np.isnan(label)):
         img = np.moveaxis(img, 0, -1)
-        img = img - np.min(img)
-        img /= np.max(img)
+        #img = img - np.min(img)
+        #img /= np.max(img)
         trainlabels.append(label)
+        trainmeans.append(label[:,0:12])
+        trainvars.append(label[:,12:24])
         trainarray.append(img)
-        trainzs.append(z)
         if count % 1000 == 0:
             print(f"Count: {count}")
             print(np.shape(trainlabels))
             
     count+=1 
 print("LOADED FROM DIRECTORY 1")
+"""
 for name in train_fnames2:
     img = np.load(f"{base_dir2}/{name}")
     objid  = name.replace(".npy", "")
@@ -76,26 +76,28 @@ for name in train_fnames2:
         continue
     label = labels[ind]
     z = zs[ind]
-    if np.shape(img) == (5,100,100) and not np.any(np.isnan(img)) and np.shape(label) == (1,12) and not np.any(np.isnan(label)):
+    if np.shape(img) == (5,100,100) and not np.any(np.isnan(img)) and np.shape(label) == (1,32) and not np.any(np.isnan(label)):
         img = np.moveaxis(img, 0, -1)
-        img = img - np.min(img)
-        img /= np.max(img)
+        #img = img - np.min(img)
+        #img /= np.max(img)
         trainlabels.append(label)
+        trainmeans.append(label[:,0:16])
+        trainvars.append(label[:,16:32])
         trainarray.append(img)
-        trainzs.append(z)
         if count % 1000 == 0:
             print(f"Count: {count}")
             print(np.shape(trainlabels))
             
     count+=1 
 print("LOADED FROM DIRECTORY 2")
+"""
 print(np.shape(trainarray))
 print(np.shape(trainlabels))
-c = list(zip(trainarray, trainlabels, trainzs))
+c = list(zip(trainarray, trainlabels, trainmeans, trainvars))
 
 random.shuffle(c)
 
-trainarray, trainlabels, trainzs = zip(*c)
+trainarray, trainlabels, trainmeans, trainvars = zip(*c)
       
 trainfrac = 0.8
 valind = int(round(trainfrac*len(trainarray)))
@@ -104,12 +106,13 @@ valarray = trainarray[valind:-1]
 trainarray = trainarray[0:valind]
 vallabels = trainlabels[valind:-1]
 trainlabels = trainlabels[0:valind]
-valzs = trainzs[valind:-1]
-trainzs = trainzs[0:valind]
+valmeans = trainmeans[valind:-1]
+trainmeans = trainmeans[0:valind]
+valvars = trainvars[valind:-1]
+trainvars = trainvars[0:valind]
 trainlabels = np.array(trainlabels)
 vallabels = np.array(vallabels)
 trainzs = np.array(trainzs)
-valzs = np.array(valzs)
 """   
 for i in range(1000):
     r = np.random.randint(0, len(trainarray))
@@ -165,9 +168,11 @@ test_dataset = tf.convert_to_tensor(valarray)
 
 trainlabels = tf.convert_to_tensor(trainlabels)
 vallabels = tf.convert_to_tensor(vallabels)
-trainzs = tf.convert_to_tensor(trainzs)
-valzs = tf.convert_to_tensor(valzs)
-np.savez("/cosma5/data/durham/dc-will10/CNNtensors.npz", traindata = train_dataset, testdata = test_dataset, trainlabels = trainlabels, vallabels = vallabels, trainzs = trainzs, valzs = valzs)
+trainmeans = tf.convert_to_tensor(trainmeans)
+valmeans = tf.convert_to_tensor(valmeans)
+trainvars = tf.convert_to_tensor(trainvars)
+valvars = tf.convert_to_tensor(valvars)
+np.savez("/cosma5/data/durham/dc-will10/CNNtensors.npz", traindata = train_dataset, testdata = test_dataset, trainlabels = trainlabels, vallabels = vallabels, trainmeans = trainmeans, valmeans = valmeans, trainvars = trainvars, valvars = valvars)
 print("TENSORS SAVED")
 import pdb; pdb.set_trace()
 def model_builder(hp):

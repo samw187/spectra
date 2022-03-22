@@ -1,3 +1,4 @@
+import random
 from re import S
 from urllib.parse import _NetlocResultMixinStr
 from IPython import display
@@ -31,7 +32,7 @@ import time
 import IPython.display as ipd
 
 data = np.load("/cosma/home/durham/dc-will10/spec64new4.npz")
-proper = np.load("/cosma5/data/durham/dc-will10/exKronSpectra.npz")
+proper = np.load("/cosma5/data/durham/dc-will10/fullKronSpectra.npz")
 #norms = np.load("/cosma/home/durham/dc-will10/spectra/normspanstarrs.npz")
 #spec = data["spectra"]
 #for i in range(len(spec)):
@@ -58,6 +59,7 @@ for i in range(len(norms)):
         print(i)
     #spec[i] = spec[i] /data["norms"][i]
 """
+random.shuffle(spec)
 spec = np.expand_dims(spec, axis=1)
 spec = np.moveaxis(spec, 1, -1)
 print(np.shape(spec))
@@ -69,7 +71,7 @@ tf.reshape(wavelengths, (1,1767))
 print(np.shape(spec))
 #errs = np.array(errs)
 
-trainfrac = 0.8
+trainfrac = 0.75
 #train_size = 40000
 #test_size = 10000
 ntrain = int(spec.shape[0] * trainfrac)
@@ -142,7 +144,7 @@ class Resnet1DBlock(tf.keras.Model):
         #x += input_tensor
         return tf.nn.relu(x)
 
-latent_dim = 8
+latent_dim = 16
 """
 encoder_inputs = keras.Input(shape=(1767,1))
 x = layers.Reshape(target_shape = (1767,), input_shape=(1,1767))(encoder_inputs)
@@ -309,7 +311,9 @@ x=layers.Conv1D(32,1,1, name = "fourthconv",activation = "relu")(x)
 x=layers.Flatten()(x)
 x=layers.Dense(256,activation = "relu")(x)
 x=layers.Dropout(0.5)(x)
-x = layers.Dense(128,activation = "relu")(x)
+x = layers.Dense(2048,activation = "relu")(x)
+x = layers.Dense(1024,activation = "relu")(x)
+x = layers.Dense(512,activation = "relu")(x)
 z_mean = layers.Dense(latent_dim, name="z_mean")(x)
 z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
 z = Sampling()([z_mean, z_log_var])
