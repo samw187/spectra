@@ -11,6 +11,8 @@ import random
 from tensorflow.keras import layers
 from tensorflow.keras import Model
 from tensorflow.keras.optimizers import Adam
+
+#UTILISES CODE BY PORTILLO ET AL. (2020) https://github.com/stephenportillo/SDSS-VAE/blob/master/trainVAE.py
   
 base_dir = '/cosma5/data/durham/dc-will10/Image_data'
 

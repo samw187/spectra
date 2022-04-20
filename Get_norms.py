@@ -36,6 +36,13 @@ import sys
 import urllib
 size = 100
 
+"""
+Based on code by John F. Wu (2020), with slight alterations. Base code can be found at https://github.com/jwuphysics/predicting-spectra-from-images/blob/main/src/get_ps1_fits.py 
+
+Saves grizy FITS imaging from Pan-STARRS1 in npy format.
+Partially based off https://ps1images.stsci.edu/ps1image.html
+"""
+
 data = np.load("/cosma/home/durham/dc-will10/spec64new4.npz")
 ra = data["ra"]
 dec = data["dec"]

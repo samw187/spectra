@@ -25,6 +25,11 @@ import sys
 import urllib
 from astroquery.sdss import SDSS
 
+
+#CODE TO FIND KRON FLUX VALUES FROM PANSTARRS SURVEY BASED ON PRE-DEFINED FUNCTIONS AT http://ps1images.stsci.edu/ps1_dr2_api.html
+
+
+
 try: # Python 3.x
     from urllib.parse import quote as urlencode
     from urllib.request import urlretrieve

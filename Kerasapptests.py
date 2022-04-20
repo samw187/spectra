@@ -13,6 +13,11 @@ from tensorflow.keras import Model
 from tensorflow.keras.optimizers import Adam
 import keras_tuner as kt
 
+#CODE TO TEST DEEP MODELS BASED ON KERAS APPLICATIONS MODELS https://keras.io/api/applications/
+
+
+
+
 datastuff = np.load("/cosma5/data/durham/dc-will10/StandardtensorsLast16.npz")
 traindata = datastuff["traindata"]
 testdata = datastuff["testdata"]

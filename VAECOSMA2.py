@@ -26,6 +26,14 @@ import imageio
 import time
 import IPython.display as ipd
 
+
+ 
+#MMD LOSS CODE CAN BE FOUND AT https://github.com/ShengjiaZhao/MMD-Variational-Autoencoder
+#BAYESIAN OPTIMISATION USES KERAS TUNER https://keras.io/keras_tuner/
+# KL divergence (Kingma and Welling, https://arxiv.org/abs/1312.6114, Appendix B)
+#CODE FOR RESNET1DBLOCK AND VAE SETUP https://www.kaggle.com/code/basu369victor/generate-music-with-variational-autoencoder/notebook
+#UTILISES CODE BY PORTILLO ET AL. (2020) https://github.com/stephenportillo/SDSS-VAE/blob/master/trainVAE.py
+
 #LOAD IN THE DATA
 
 data = np.load("spec64new4.npz")

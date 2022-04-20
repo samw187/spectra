@@ -10,6 +10,15 @@ from tensorflow.keras import layers
 from tensorflow.keras import Model
 from tensorflow.keras.optimizers import Adam
 import keras_tuner as kt
+
+
+#CNN CODE UTILISING KERAS TUNER https://keras.io/keras_tuner/
+#MODEL_BUILDER3 OPTIMISES THE HYPERPARAMETERS OF A CNN
+#UTILISES CODE BY PORTILLO ET AL. (2020) https://github.com/stephenportillo/SDSS-VAE/blob/master/trainVAE.py
+
+
+
+
 """
 base_dir = '/cosma5/data/durham/dc-will10/Image_data100ex'
 base_dir2 = '/cosma5/data/durham/dc-will10/Image_data'

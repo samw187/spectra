@@ -35,6 +35,14 @@ from tensorflow.keras.applications.imagenet_utils import preprocess_input
 #from tensorflow.keras.applications.imagenet_utils import _obtain_input_shape
 #from tensorflow.keras.engine.topology import get_source_inputs
 
+
+
+
+#RESNET 50 CODE FROM https://github.com/fchollet/deep-learning-models/blob/master/resnet50.py
+
+
+
+
 datastuff = np.load("/cosma5/data/durham/dc-will10/CNNtensors.npz")
 train_dataset = datastuff["traindata"]
 test_dataset = datastuff["testdata"]

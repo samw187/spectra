@@ -6,6 +6,12 @@ import numpy as np
 import os
 import scipy.stats
 
+#CODE TO PRODUCE AN 18 LAYER RESNET BASED ON CODE FROM https://github.com/jimmyyhwu/resnet18-tf2/blob/master/resnet.py
+
+
+
+
+
 kaiming_normal = keras.initializers.VarianceScaling(scale=2.0, mode='fan_out', distribution='untruncated_normal')
 
 def conv3x3(x, out_planes, stride=1, name=None):

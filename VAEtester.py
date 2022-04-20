@@ -32,6 +32,17 @@ from tensorflow.keras.models import Model
 import glob
 import time
 
+#CUSTOM VAE CODE BASED ON SOURCE CODE FROM https://keras.io/examples/generative/vae/ 
+#MMD LOSS CODE CAN BE FOUND AT https://github.com/ShengjiaZhao/MMD-Variational-Autoencoder
+#BAYESIAN OPTIMISATION USES KERAS TUNER https://keras.io/keras_tuner/
+# KL divergence (Kingma and Welling, https://arxiv.org/abs/1312.6114, Appendix B)
+#CODE FOR RESNET1DBLOCK https://www.kaggle.com/code/basu369victor/generate-music-with-variational-autoencoder/notebook
+#UTILISES CODE BY PORTILLO ET AL. (2020) https://github.com/stephenportillo/SDSS-VAE/blob/master/trainVAE.py
+
+
+
+
+
 data = np.load("/cosma5/data/durham/dc-will10/spec64new4.npz")
 proper = np.load("/cosma5/data/durham/dc-will10/fullKronSpectra.npz")
 #norms = np.load("/cosma/home/durham/dc-will10/spectra/normspanstarrs.npz")
