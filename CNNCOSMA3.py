@@ -115,8 +115,9 @@ print(np.shape(vallabels))
 #trainlabels = tf.convert_to_tensor(trainlabels)
 #vallabels = tf.convert_to_tensor(vallabels)
 #np.savez("/cosma5/data/durham/dc-will10/CNNtensors.npz", traindata = train_dataset, testdata = test_dataset, trainlabels = trainlabels, vallabels = vallabels)
-datastuff = np.load("/cosma5/data/durham/dc-will10/CNNtensors.npz")
-
+"""
+datastuff = np.load("/cosma5/data/durham/dc-will10/CNNtensorsLast16.npz")
+#os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 train_dataset = datastuff["traindata"]
 test_dataset = datastuff["testdata"]
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
@@ -126,8 +127,55 @@ trainmeans = datastuff["trainmeans"]
 valmeans = datastuff["valmeans"]
 trainvars = datastuff["trainvars"]
 valvars = datastuff["valvars"]
+extravals = []
+extralabels = []
+extrameans = []
+extravars = []
+datsize = len(train_dataset)
 print(np.shape(trainlabels))
-
+for i in range(5000):
+    r = np.random.randint(0, datsize)
+    lab = trainlabels[r]
+    mean = trainmeans[r]
+    var = trainvars[r]
+    theta = np.random.randint(0,360)
+    random_bit = random.getrandbits(1)
+    random_bit2 = random.getrandbits(1)
+    flip_h = bool(random_bit)
+    flip_v = bool(random_bit2)
+    augmented = ImageDataGenerator().apply_transform(x = train_dataset[r], transform_parameters = {"flip_horizontal":flip_h, "flip_vertical":flip_v})
+    #augmented = tf.expand_dims(augmented, 0)
+    #lab = tf.expand_dims(lab, 0)
+    extravals.append(augmented)
+    extralabels.append(lab)
+    extrameans.append(mean)
+    extravars.append(var)
+    #tf.experimental.numpy.append(extravals,augmented, axis =  0)
+    #tf.experimental.numpy.append(extralabels,lab, axis =  0)
+    print(i)
+print(np.shape(train_dataset))
+train_dataset = np.append(train_dataset, extravals, 0)
+trainlabels = np.append(trainlabels, extralabels, 0)
+trainmeans = np.append(trainmeans, extrameans, 0)
+trainvars = np.append(trainvars, extravars, 0)
+#tf.experimental.numpy.append(train_dataset,extravals, axis =  0)
+#tf.experimental.numpy.append(trainlabels,extralabels, axis =  0)
+print(np.shape(train_dataset))
+#train_dataset = tf.convert_to_tensor(train_dataset)
+#trainlabels = tf.convert_to_tensor(trainlabels)
+"""
+"""
+for i in range(len(train_dataset)):
+    train_dataset[i] -= np.min(train_dataset[i])
+    train_dataset[i] /= np.max(train_dataset[i])
+    if i %1000 == 0:
+        print(i)
+for i in range(len(test_dataset)):
+    test_dataset[i] -= np.min(test_dataset[i])
+    test_dataset[i] /= np.max(test_dataset[i])
+"""
+#BELOW IS THE CORRECT NORM CODE
+"""
 for i in range(len(train_dataset)):
     for j in range(5):
         img = train_dataset[i,:,:,j] 
@@ -141,6 +189,7 @@ for i in range(len(train_dataset)):
         train_dataset[i,:,:,j] = np.clip(img, sigma, None)
     train_dataset[i] = np.log(train_dataset[i])
     train_dataset[i] /= np.max(train_dataset[i,:,:,3])
+    
     if i %1000 == True:
         print(i)
 print("EDITED TRAINING DATA")
@@ -157,9 +206,11 @@ for i in range(len(test_dataset)):
         test_dataset[i,:,:,j] = np.clip(img, sigma, None)
     test_dataset[i] = np.log(test_dataset[i])
     test_dataset[i] /= np.max(test_dataset[i,:,:,3])
+    
     if i % 1000 == True:
         print(i)
 print("EDITED TEST DATA")
+"""
 """
 for i in range(len(train_dataset)):
     train_dataset[i,:,:,0] = (train_dataset[i,:,:,0] - np.min(train_dataset[i,:,:,0]))
@@ -238,16 +289,25 @@ for i in range(len(test_dataset)):
     test_dataset[i,:,:,4] = (test_dataset[i,:,:,4] - mean5)/std5
 print("edited test data")
 """
-np.savez("/cosma5/data/durham/dc-will10/Standardtensorslowz.npz", traindata = train_dataset, testdata = test_dataset, trainlabels = trainlabels, vallabels = vallabels, trainmeans = trainmeans, valmeans = valmeans, trainvars = trainvars, valvars = valvars)
-#train_dataset = datastuff["traindata"]
-#test_dataset = datastuff["testdata"]
-#os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-#trainlabels = datastuff["trainlabels"]
-#vallabels = datastuff["vallabels"]
-#trainmeans = datastuff["trainmeans"]
-#valmeans = datastuff["valmeans"]
+#np.savez("/cosma5/data/durham/dc-will10/StandardtensorsLast16.npz", traindata = train_dataset, testdata = test_dataset, trainlabels = trainlabels, vallabels = vallabels, trainmeans = trainmeans, valmeans = valmeans, trainvars = trainvars, valvars = valvars)
+
+datastuff = np.load("/cosma5/data/durham/dc-will10/StandardtensorsLast16.npz")
+train_dataset = datastuff["traindata"]
+test_dataset = datastuff["testdata"]
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+trainlabels = datastuff["trainlabels"]
+vallabels = datastuff["vallabels"]
+trainmeans = datastuff["trainmeans"]
+valmeans = datastuff["valmeans"]
+trainvars = datastuff["trainvars"]
+valvars = datastuff["valvars"]
+latent_dim = 16
+#for i in range(len(trainlabels)):
+#    trainlabels[i][0][latent_dim:2*latent_dim] = np.sqrt(np.log(trainlabels[i][0][latent_dim:2*latent_dim]))
+#for i in range(len(vallabels)):
+#    vallabels[i][0][latent_dim:2*latent_dim] = np.sqrt(np.log(vallabels[i][0][latent_dim:2*latent_dim]))
 print("TENSORS LOADED")
-latent_dim = 12
+
 #import pdb; pdb.set_trace()
 """
 def model_builder(hp):
@@ -354,7 +414,7 @@ def model_builder2(hp):
     return model
 
 def model_builder3(hp):
-    num_convlayers = hp.Choice("num_layers", values = [3,4])
+    num_convlayers = hp.Choice("num_layers", values = [3])
     num_denselayers = hp.Choice("dense_layers", values = [2])
     kernel1 = hp.Choice("kernel1", values = [1,2,3,4,5])
     kernel2 = hp.Choice("kernel2", values = [1,2,3,4,5])
@@ -374,11 +434,11 @@ def model_builder3(hp):
     #dr1 = hp.Choice("dropout1", values = [0.0,0.2,0.4,0.5,0.6])
     #dr2 = hp.Choice("dropout2", values = [0.0,0.2,0.4,0.5,0.6])
     #dr3 = hp.Choice("dropout3", values = [0.0,0.2,0.4,0.5,0.6])
-    kernel4 = hp.Choice("kernel4", values = [1,2,3,4,5])
-    filters4 = hp.Choice("filters4", values = [8,16,32,64,128,256])
-    activation4 = hp.Choice("activation4", values = ["linear", "leakyrelu","elu", "relu"])
-    bn4 = hp.Choice("batchnorm4", values = [True, False])
-    pooling4 = hp.Choice("pooling4", values = [True, False])
+    #kernel4 = hp.Choice("kernel4", values = [1,2,3,4,5])
+    #filters4 = hp.Choice("filters4", values = [8,16,32,64,128,256])
+    #activation4 = hp.Choice("activation4", values = ["linear", "leakyrelu","elu", "relu"])
+    #bn4 = hp.Choice("batchnorm4", values = [True, False])
+    #pooling4 = hp.Choice("pooling4", values = [True, False])
     #dr4 = hp.Choice("dropout4", values = [0.0,0.2,0.4,0.5,0.6])
     #kernel5 = hp.Choice("kernel5", values = [1,2,3,4,5])
     #filters5 = hp.Choice("filters5", values = [8,16,32,64,128,256])
@@ -386,64 +446,67 @@ def model_builder3(hp):
     #bn5 = hp.Choice("batchnorm5", values = [True, False])
     #pooling5 = hp.Choice("pooling5", values = [True, False])
     dr5 = hp.Choice("dropout5", values = [0.0,0.2,0.4,0.5,0.6])
-    units1 = hp.Choice("units1", values = [32,64,128,256,512,1024,2048])
+    units1 = hp.Choice("units1", values = [32,64,128,256,512,1024,1024])
     activation6 = hp.Choice("activation6", values = ["linear", "leakyrelu","elu", "relu"])
     bn6 = hp.Choice("batchnorm6", values = [True, False])
     dr6 = hp.Choice("dropout6", values = [0.0,0.2,0.4,0.5,0.6])
-    units2 = hp.Choice("units2", values = [32,64,128,256,512,1024,2048])
+    units2 = hp.Choice("units2", values = [32,64,128,256,512,1024,1024])
     activation7 = hp.Choice("activation7", values = ["linear", "leakyrelu","elu", "relu"])
     bn7 = hp.Choice("batchnorm7", values = [True, False])
     #dr7 = hp.Choice("dropout7", values = [0.0,0.2,0.4,0.5,0.6])
     model = tf.keras.models.Sequential()
     model.add(layers.Convolution2D(filters1, kernel1,input_shape=(150,150,5)))
+    if bn1 == True:
+        model.add(layers.BatchNormalization())
     if activation1 == "elu":
         model.add(layers.ELU())
     if activation1 == "leakyrelu":
         model.add(layers.LeakyReLU())
     if activation1 == "relu":
         model.add(layers.ReLU())
-    if bn1 == True:
-        model.add(layers.BatchNormalization())
+    
     if pooling1 == True:
         model.add(layers.MaxPool2D((2,2)))
     #model.add(layers.Dropout(dr1))
     model.add(layers.Convolution2D(filters2, kernel2))
+    if bn2 == True:
+        model.add(layers.BatchNormalization())
     if activation2 == "elu":
         model.add(layers.ELU())
     if activation2 == "leakyrelu":
         model.add(layers.LeakyReLU())
     if activation2 == "relu":
         model.add(layers.ReLU())
-    if bn2 == True:
-        model.add(layers.BatchNormalization())
+    
     if pooling2 == True:
         model.add(layers.MaxPool2D((2,2)))
     #model.add(layers.Dropout(dr2))
     model.add(layers.Convolution2D(filters3, kernel3))
+    if bn3 == True:
+        model.add(layers.BatchNormalization())
     if activation3 == "elu":
         model.add(layers.ELU())
     if activation3 == "leakyrelu":
         model.add(layers.LeakyReLU())
     if activation3 == "relu":
         model.add(layers.ReLU())
-    if bn3 == True:
-        model.add(layers.BatchNormalization())
+    
     if pooling3 == True:
         model.add(layers.MaxPool2D((2,2)))
     #model.add(layers.Dropout(dr3))
-    if num_convlayers >= 4:
-        
-        model.add(layers.Convolution2D(filters4, kernel4))
-        if activation4 == "elu":
-            model.add(layers.ELU())
-        if activation4 == "leakyrelu":
-            model.add(layers.LeakyReLU())
-        if activation4 == "relu":
-            model.add(layers.ReLU())
-        if bn4 == True:
-            model.add(layers.BatchNormalization())
-        if pooling4 == True:
-            model.add(layers.MaxPool2D((2,2)))
+    #if num_convlayers >= 4:
+    #    
+    #    model.add(layers.Convolution2D(filters4, kernel4))
+    #    if activation4 == "elu":
+    #        model.add(layers.ELU())
+    #    if activation4 == "leakyrelu":
+    #        model.add(layers.LeakyReLU())
+    #    if activation4 == "relu":
+    #        model.add(layers.ReLU())
+    #    if bn4 == True:
+    #        model.add(layers.BatchNormalization())
+    #    if pooling4 == True:
+    #        model.add(layers.MaxPool2D((2,2)))
         #model.add(layers.Dropout(dr4))
     #if num_convlayers >= 5:
     #    model.add(layers.Convolution2D(filters5, kernel5))
@@ -462,64 +525,66 @@ def model_builder3(hp):
     model.add(layers.Flatten())
     if num_denselayers >= 1:
         model.add(layers.Dense(units1))
+        if bn6 == True:
+            model.add(layers.BatchNormalization())
         if activation6 == "elu":
             model.add(layers.ELU())
         if activation6 == "relu":
             model.add(layers.ReLU())
         if activation6 == "leakyrelu":
             model.add(layers.LeakyReLU())
-        if bn6 == True:
-            model.add(layers.BatchNormalization())
+        
         #model.add(layers.Dropout(dr6))
     if num_denselayers >=2:
         model.add(layers.Dropout(dr6))
     if num_denselayers >= 2:
         model.add(layers.Dense(units2))
+        if bn7 == True:
+            model.add(layers.BatchNormalization())
         if activation7 == "elu":
             model.add(layers.ELU())
         if activation7 == "leakyrelu":
             model.add(layers.LeakyReLU())
         if activation7 == "relu":
             model.add(layers.ReLU())
-        if bn7 == True:
-            model.add(layers.BatchNormalization())
+        
         #model.add(layers.Dropout(dr7))
-    model.add(layers.Dense(units = 12))
-    model.add(layers.Reshape(target_shape = (1,12), input_shape = (None, 12)))
+    model.add(layers.Dense(units = 2*latent_dim))
+    model.add(layers.Reshape(target_shape = (1,2*latent_dim), input_shape = (None, 2*latent_dim)))
     hp_learning_rate = hp.Choice('learning_rate', values=[1e-4])
     model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
-                loss=tf.keras.losses.MeanSquaredError())
+                loss=tf.keras.losses.MeanSquaredError(), metrics = ["mean_absolute_percentage_error"])
     
     print(model.summary())
 
     return model
 
-reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss",factor=0.1,patience=10,verbose=1,
+reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss",factor=0.1,patience=7,verbose=1,
     mode="auto",min_delta=0.0001,cooldown=0,min_lr=0)
 
 tuner = kt.BayesianOptimization(model_builder3,
                      objective='val_loss',
-                     max_trials=60,
+                     max_trials=10,
                      directory= "/cosma5/data/durham/dc-will10" ,
-                     project_name='cnn_tuning12varslogfinalmidz')
+                     project_name='FullCNNTuningLast16')
 
-stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=20)
+stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=14)
 
-tuner.search(train_dataset,trainvars,epochs=200,validation_data=(test_dataset,valvars), callbacks = [stop_early, reduce_lr], batch_size = 64)
+tuner.search(train_dataset,trainlabels,epochs=60,validation_data=(test_dataset,vallabels), callbacks = [stop_early, reduce_lr])
 print("SEARCH COMPLETE")
 best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
 model = tuner.hypermodel.build(best_hps)
-history = model.fit(train_dataset, trainvars, epochs=400, validation_data = (test_dataset, valvars), callbacks = [stop_early, reduce_lr], batch_size = 64)
+history = model.fit(train_dataset, trainlabels, epochs=70, validation_data = (test_dataset, vallabels), callbacks = [stop_early, reduce_lr])
 print("MODEL FITTED")
-model.save("/cosma5/data/durham/dc-will10/CNN12modelvarsmidz")
+model.save("/cosma5/data/durham/dc-will10/FullCNNModelLast16")
 val_results = []
 for data in test_dataset:
     alt = np.expand_dims(data, axis = 0)
     pred = model.predict(alt)
     val_results.append(pred)
-val_data = valmeans
+val_data = valvars
 loss = history.history["loss"]
 valloss = history.history["val_loss"]
-np.savez("cnnmetrics12varsmidz.npz", validation_results = val_results, validation_data = val_data, loss = loss, valloss = valloss)
+np.savez("FullCNNMetricsLast16.npz", validation_results = val_results, validation_data = val_data, loss = loss, valloss = valloss)
 
 

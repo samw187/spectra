@@ -245,4 +245,4 @@ def fetch_and_shift_spectra(n_spectra,
              objid = objids[:N])
     
 
-fetch_and_shift_spectra(80000, '/cosma5/data/durham/dc-will10/spec80new6.npz', 3800, 9200, 150, zlim = (0,0.5))
+fetch_and_shift_spectra(110000, '/cosma5/data/durham/dc-will10/spec80new6.npz', 3800, 9200, 150, zlim = (0.05,0.1))

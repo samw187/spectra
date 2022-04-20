@@ -46,7 +46,7 @@ def make_layer(x, planes, blocks, stride=1, name=None):
 
     return x
 
-def resnet(x, blocks_per_layer, num_classes=12):
+def resnet(x, blocks_per_layer, num_classes=24):
     x = layers.ZeroPadding2D(padding=3, name='conv1_pad')(x)
     x = layers.Conv2D(filters=64, kernel_size=7, strides=2, use_bias=False, kernel_initializer=kaiming_normal, name='conv1')(x)
     x = layers.BatchNormalization(momentum=0.9, epsilon=1e-5, name='bn1')(x)
@@ -71,7 +71,7 @@ def resnet18(x, **kwargs):
 def resnet34(x, **kwargs):
     return resnet(x, [3, 4, 6, 3], **kwargs)
 
-datastuff = np.load("/cosma5/data/durham/dc-will10/CNNtensors.npz")
+datastuff = np.load("/cosma5/data/durham/dc-will10/StandardtensorsLast12.npz")
 
 train_dataset = datastuff["traindata"]
 test_dataset = datastuff["testdata"]
@@ -83,7 +83,7 @@ valmeans = datastuff["valmeans"]
 trainvars = datastuff["trainvars"]
 valvars = datastuff["valvars"]
 print(np.shape(trainlabels))
-
+"""
 for i in range(len(train_dataset)):
     for j in range(5):
         img = train_dataset[i,:,:,j] 
@@ -116,6 +116,7 @@ for i in range(len(test_dataset)):
     if i % 1000 == True:
         print(i)
 print("EDITED TEST DATA")
+"""
 """
 for i in range(len(train_dataset)):
     train_dataset[i,:,:,0] = (train_dataset[i,:,:,0] - np.min(train_dataset[i,:,:,0]))
@@ -208,7 +209,7 @@ inputs = keras.Input(shape=(150, 150, 5))
 outputs = resnet18(inputs)
 model = keras.Model(inputs, outputs)
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
-                loss=tf.keras.losses.MeanAbsolutePercentageError(), metrics = ["mean_squared_error"])
+                loss=tf.keras.losses.MeanSquaredError(), metrics = ["mean_absolute_percentage_error"])
 model.summary()
 reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss",factor=0.1,patience=10,verbose=1,
     mode="auto",min_delta=0.0001,cooldown=0,min_lr=0)
@@ -216,9 +217,9 @@ reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss",factor=0.1,p
 
 stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=20)
 
-history = model.fit(train_dataset, trainmeans, epochs=400, validation_data = (test_dataset, valmeans), callbacks = [reduce_lr, stop_early], batch_size = 64)
+history = model.fit(train_dataset, trainlabels, epochs=400, validation_data = (test_dataset, vallabels), callbacks = [reduce_lr, stop_early], batch_size = 64)
 print("MODEL FITTED")
-model.save("/cosma5/data/durham/dc-will10/CNN12resnetmeans")
+model.save("/cosma5/data/durham/dc-will10/CNN12resnet")
 
 val_results = []
 for data in test_dataset:

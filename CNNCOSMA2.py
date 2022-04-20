@@ -26,11 +26,13 @@ for i in sorted(nameinds, reverse=True):
 """
 base_dir = '/cosma5/data/durham/dc-will10/Image_data150'
 train_fnames = os.listdir(base_dir)
-labelfile = np.load("/cosma5/data/durham/dc-will10/imglabelsOptmidz.npz")
+labelfile = np.load("/cosma5/data/durham/dc-will10/imglabelsOptmidzLast20.npz") #return to old version with proper instead of Final
 labels = labelfile["labels"]
-zs = labelfile["zs"]
+sind = int(1*len(labels))
+labels = labels[0:sind]
+zs = labelfile["zs"][0:sind]
 trainlabels = []
-
+latent_dim = 20
 print(np.shape(trainlabels))
 
 print(np.shape(train_fnames))
@@ -46,19 +48,19 @@ count = 0
 for name in train_fnames:
     img = np.load(f"{base_dir}/{name}")
     objid  = name.replace(".npy", "")
-    ind = np.where(labelfile["ids"]==int(objid))
+    ind = np.where(labelfile["ids"][0:sind]==int(objid))
     if len(ind) == 0:
         count+=1
         continue
     label = labels[ind]
     z = zs[ind]
-    if np.shape(img) == (5,150,150) and not np.any(np.isnan(img)) and np.shape(label) == (1,24) and not np.any(np.isnan(label)):
+    if np.shape(img) == (5,150,150) and not np.any(np.isnan(img)) and np.shape(label) == (1,2*latent_dim) and not np.any(np.isnan(label)):
         img = np.moveaxis(img, 0, -1)
         #img = img - np.min(img)
         #img /= np.max(img)
         trainlabels.append(label)
-        trainmeans.append(label[:,0:12])
-        trainvars.append(label[:,12:24])
+        trainmeans.append(label[:,0:latent_dim])
+        trainvars.append(label[:,latent_dim:2*latent_dim])
         trainarray.append(img)
         if count % 1000 == 0:
             print(f"Count: {count}")
@@ -172,7 +174,7 @@ trainmeans = tf.convert_to_tensor(trainmeans)
 valmeans = tf.convert_to_tensor(valmeans)
 trainvars = tf.convert_to_tensor(trainvars)
 valvars = tf.convert_to_tensor(valvars)
-np.savez("/cosma5/data/durham/dc-will10/CNNtensors.npz", traindata = train_dataset, testdata = test_dataset, trainlabels = trainlabels, vallabels = vallabels, trainmeans = trainmeans, valmeans = valmeans, trainvars = trainvars, valvars = valvars)
+np.savez("/cosma5/data/durham/dc-will10/CNNtensorsLast20.npz", traindata = train_dataset, testdata = test_dataset, trainlabels = trainlabels, vallabels = vallabels, trainmeans = trainmeans, valmeans = valmeans, trainvars = trainvars, valvars = valvars)
 print("TENSORS SAVED")
 import pdb; pdb.set_trace()
 def model_builder(hp):

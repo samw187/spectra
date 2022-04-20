@@ -11,14 +11,12 @@ from tensorflow.keras.optimizers import Adam
 import keras_tuner as kt
 from re import S
 from urllib.parse import _NetlocResultMixinStr
-import math
-import glob
-import imageio
+
 import numpy as np
-import PIL
+
 import tensorflow as tf
 #import tensorflow_probability as tfp
-import time
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -60,7 +58,11 @@ for i in range(len(norms)):
         print(i)
     #spec[i] = spec[i] /data["norms"][i]
 """
-random.shuffle(spec)
+zs = proper["z"]
+objids = proper["objid"]
+c = list(zip(spec, objids,zs))
+random.shuffle(c)
+spec, objids,zs = zip(*c)
 #spec = spec[0:60000]
 spec = np.expand_dims(spec, axis=1)
 spec = np.moveaxis(spec, 1, -1)
@@ -101,9 +103,12 @@ train_dataset = tf.convert_to_tensor(trainspec)
 #train_dataset = (tf.data.Dataset.from_tensor_slices(spec).shuffle(ntrain+nvalid))
 #test_dataset = (tf.data.Dataset.from_tensor_slices(validspec)
           #      .shuffle(nvalid).batch(batch_size))
+
 test_dataset = tf.convert_to_tensor(validspec)
-fin_dataset = tf.convert_to_tensor(spec)
-tf.expand_dims(fin_dataset, 1)
+#train_dataset = trainspec
+#test_dataset = validspec
+#fin_dataset = tf.convert_to_tensor(spec)
+#tf.expand_dims(fin_dataset, 1)
 tf.expand_dims(test_dataset, 1)
 tf.expand_dims(train_dataset, 1)
 np.savez('datasplit.npz', trainidx=trainidx, valididx=valididx, valdata = validspec)
@@ -148,7 +153,7 @@ class Resnet1DBlock(tf.keras.Model):
         #x += input_tensor
         return tf.nn.relu(x)
 
-latent_dim =12
+latent_dim =10
 
 def compute_kernel(x, y):
     x_size = tf.shape(x)[0]
@@ -156,13 +161,32 @@ def compute_kernel(x, y):
     dim = tf.shape(x)[1]
     tiled_x = tf.tile(tf.reshape(x, tf.stack([x_size, 1, dim])), tf.stack([1, y_size, 1]))
     tiled_y = tf.tile(tf.reshape(y, tf.stack([1, y_size, dim])), tf.stack([x_size, 1, 1]))
-    return tf.exp(-tf.reduce_mean(tf.square(tiled_x - tiled_y), axis=2)/ tf.cast(dim, tf.float32)) 
+    return tf.exp(-tf.reduce_mean(tf.square(tiled_x - tiled_y), axis=2)/ tf.cast(dim, tf.float32))
 
 def compute_mmd(x, y, sigma_sqr=1.0):
     x_kernel = compute_kernel(x, x)
     y_kernel = compute_kernel(y, y)
     xy_kernel = compute_kernel(x, y)
     return tf.reduce_mean(x_kernel) + tf.reduce_mean(y_kernel) - 2 * tf.reduce_mean(xy_kernel)
+
+def gaussian_kernel(x1, x2, beta = 1.0):
+    r = tf.transpose(x1)
+    r = tf.expand_dims(r, 2)
+    return tf.reduce_sum(tf.exp( -beta * tf.square(r - x2)), axis=-1)
+  
+def MMD(x1, x2, beta):
+    """
+    maximum mean discrepancy (MMD) based on Gaussian kernel
+    function for keras models (theano or tensorflow backend)
+    
+    - Gretton, Arthur, et al. "A kernel method for the two-sample-problem."
+    Advances in neural information processing systems. 2007.
+    """
+    x1x1 = gaussian_kernel(x1, x1, beta)
+    x1x2 = gaussian_kernel(x1, x2, beta)
+    x2x2 = gaussian_kernel(x2, x2, beta)
+    diff = tf.reduce_mean(x1x1) - 2 * tf.reduce_mean(x1x2) + tf.reduce_mean(x2x2)
+    return diff
 
 class VAE(keras.Model):
     def __init__(self, encoder, decoder, alpha = 0, lambd = 2, **kwargs):
@@ -192,14 +216,15 @@ class VAE(keras.Model):
             z_mean, z_log_var, z = self.encoder(data)
             reconstruction = self.decoder(z)
             true_samples = tf.random.normal(tf.stack([batch_size, latent_dim]))
-            reconstruction_loss = tf.reduce_mean(tf.reduce_sum(keras.losses.MSE(data, reconstruction)))
-            #reconstruction_loss = tf.keras.backend.mean(tf.keras.backend.square(data-reconstruction))
+            #reconstruction_loss = tf.reduce_mean(tf.reduce_sum(keras.losses.MSE(data, reconstruction)))
+            reconstruction_loss = tf.keras.backend.mean(tf.keras.backend.square(data-reconstruction))
             mmd_loss = compute_mmd(true_samples, z)
-            kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
-            kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
-            #kl_loss = -0.5 * tf.keras.backend.sum(1.0 + z_log_var - tf.keras.backend.square(z_mean) - tf.keras.backend.exp(z_log_var), axis=1)
-            #total_loss = reconstruction_loss + (1-self.alpha)*kl_loss + (self.lambd+self.alpha-1)*mmd_loss
-            total_loss = reconstruction_loss + kl_loss
+            #mmd_loss = MMD(true_samples, z, beta = 1)
+            #kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
+            #kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
+            kl_loss = -0.5 * tf.keras.backend.sum(1.0 + z_log_var - tf.keras.backend.square(z_mean) - tf.keras.backend.exp(z_log_var), axis=1)
+            #total_loss = reconstruction_loss  + 3*kl_loss #(self.lambd+self.alpha-1)*mmd_loss #+ (1-self.alpha)*kl_loss
+            total_loss = reconstruction_loss + mmd_loss
         grads = tape.gradient(total_loss, self.trainable_weights)
         self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
         self.total_loss_tracker.update_state(total_loss)
@@ -219,15 +244,18 @@ class VAE(keras.Model):
         z_mean, z_log_var, z = self.encoder(data)
         reconstruction = self.decoder(z)
         true_samples = tf.random.normal(tf.stack([batch_size, latent_dim]))
-        reconstruction_loss = tf.reduce_mean(tf.reduce_sum(keras.losses.MSE(data, reconstruction)))#tf.reduce_sum
-        #reconstruction_loss = tf.keras.backend.mean(tf.keras.backend.square(data-reconstruction))
+        #reconstruction_loss = tf.reduce_mean(tf.reduce_sum(keras.losses.MSE(data, reconstruction)))#tf.reduce_sum
+        reconstruction_loss = tf.keras.backend.mean(tf.keras.backend.square(data-reconstruction))
         #reconstruction_loss /= 1436
         #reconstruction_loss
+        #mmd_loss = MMD(true_samples, z, beta = 1)
         mmd_loss = compute_mmd(true_samples, z)
-        kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
-        kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
-        #total_loss = reconstruction_loss + (1-self.alpha)*kl_loss + (self.lambd+self.alpha-1)*mmd_loss
-        total_loss = reconstruction_loss + kl_loss
+        #kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
+        #kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
+        kl_loss = -0.5 * tf.keras.backend.sum(1.0 + z_log_var - tf.keras.backend.square(z_mean) - tf.keras.backend.exp(z_log_var), axis=1)
+            
+        #total_loss = reconstruction_loss  + 3*kl_loss #(self.lambd+self.alpha-1)*mmd_loss #+(1-self.alpha)*kl_loss
+        total_loss = reconstruction_loss + mmd_loss
         return {
             "loss": total_loss,
             "reconstruction_loss": reconstruction_loss,
@@ -236,8 +264,8 @@ class VAE(keras.Model):
         }
 
 def model_builder(hp):
-    num_convlayers = hp.Choice("num_layers", values = [1,2,3,4,5])
-    num_denselayers = hp.Choice("dense_layers", values = [1,2,3,4])
+    num_convlayers = hp.Choice("num_layers", values = [1,2,3,4])
+    num_denselayers = hp.Choice("dense_layers", values = [1,2,3])
     encoder_inputs = keras.Input(shape=(1767,1))
     if num_convlayers >= 1:
         kernel1 = hp.Choice("kernel1", values = [1,2,3,4,5,6,7,8,9])
@@ -279,7 +307,7 @@ def model_builder(hp):
         x = layers.Dropout(dr2)(x)
     if num_convlayers >= 3:
         kernel3 = hp.Choice("kernel3", values = [1,2,3,4,5,6,7,8,9])
-        filters3 = hp.Choice("filters3", values = [32,64,128, 256, 512, 1024, 2048])
+        filters3 = hp.Choice("filters3", values = [32,64,128, 256, 512, 1024])
         activation3 = hp.Choice("activation3", values = ["linear", "relu", "leakyrelu", "elu"])
         bn3 = hp.Choice("batchnorm3", values = [True, False])
         pooling3 = hp.Choice("pooling3", values = [True, False])
@@ -298,7 +326,7 @@ def model_builder(hp):
         x = layers.Dropout(dr3)(x)
     if num_convlayers >= 4:
         kernel4 = hp.Choice("kernel4", values = [1,2,3,4,5,6,7,8,9])
-        filters4 = hp.Choice("filters4", values = [32,64,128, 256, 512, 1024, 2048])
+        filters4 = hp.Choice("filters4", values = [32,64,128, 256, 512, 1024])
         activation4 = hp.Choice("activation4", values = ["linear", "relu", "leakyrelu", "elu"])
         bn4 = hp.Choice("batchnorm4", values = [True, False])
         pooling4 = hp.Choice("pooling4", values = [True, False])
@@ -315,6 +343,7 @@ def model_builder(hp):
         if pooling4 == True:
             x = layers.MaxPool1D(2)(x)
         x = layers.Dropout(dr4)(x)
+    """
     if num_convlayers >= 5:
         kernel5 = hp.Choice("kernel5", values = [1,2,3,4,5,6,7,8,9])
         filters5 = hp.Choice("filters5", values = [32,64,128, 256, 512, 1024, 2048])
@@ -334,6 +363,7 @@ def model_builder(hp):
         if pooling5 == True:
             x = layers.MaxPool1D(2)(x)
         x = layers.Dropout(dr5)(x)
+    """
     if num_convlayers >= 1:
         x = layers.Flatten()(x)
     if num_convlayers == 0:
@@ -466,6 +496,7 @@ def model_builder(hp):
         x = layers.Reshape(target_shape=(latent_dim,1))(latent_inputs)
     else:
         x = layers.Reshape(target_shape=(units1,1))(x)
+    """
     if num_convlayers >= 5:
         x = layers.Conv1DTranspose(filters5, kernel5)(x)
         if activation5 == "relu":
@@ -479,6 +510,7 @@ def model_builder(hp):
         #if pooling5 == True:
          #   x = layers.UpSampling1D(size = 2)(x)
         x = layers.Dropout(dr5)(x)
+    """
     if num_convlayers >= 4:
         x = layers.Conv1DTranspose(filters4, kernel4)(x)
         if activation4 == "relu":
@@ -539,57 +571,62 @@ def model_builder(hp):
     decoder = keras.Model(latent_inputs, decoder_outputs, name="decoder")
     decoder.summary()
     vae = VAE(encoder, decoder)
-    vae.compile(optimizer=tf.keras.optimizers.Adam(lr = 0.001), loss = "loss", metrics = ["root_mean_squared_error"])
+    vae.compile(optimizer=tf.keras.optimizers.Adam(lr = 0.0001), loss = "loss", metrics = ["root_mean_squared_error"])
     return vae
 
-reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_reconstruction_loss',factor=0.1,patience=10,verbose=1,
+reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_reconstruction_loss',factor=0.1,patience=6,verbose=1,
     mode="auto",min_delta=0.0001,cooldown=0,min_lr=0)
 NanTerm = tf.keras.callbacks.TerminateOnNaN()
 tuner = kt.BayesianOptimization(model_builder,
                      objective=kt.Objective("val_reconstruction_loss", direction="min"),
                      max_trials=30,
                      directory= "/cosma5/data/durham/dc-will10" ,
-                     project_name='vae_tuning6last')
+                     project_name='vae_tuning10last')
 
-stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_reconstruction_loss', patience=15, min_delta = 0.0001)
-reduce_lr2 = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss',factor=0.1,patience=10,verbose=1,
-    mode="auto",min_delta=0.0001,cooldown=0,min_lr=0)
-stop_early2 = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=25, min_delta = 0.0001)
-reduce_lr3 = tf.keras.callbacks.ReduceLROnPlateau(monitor='reconstruction_loss',factor=0.1,patience=10,verbose=1,
-    mode="auto",min_delta=0.1,cooldown=0,min_lr=0)
-stop_early3 = tf.keras.callbacks.EarlyStopping(monitor='reconstruction_loss', patience=25, min_delta = 0.1)
-tuner.search(x = train_dataset,y = None, epochs=200, validation_data=(test_dataset, None), callbacks = [stop_early, reduce_lr, NanTerm]) #validation_data=(test_dataset,test_dataset)
+stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_reconstruction_loss', patience=12, min_delta = 0.0001)
+reduce_lr2 = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss',factor=0.1,patience=7,verbose=1,
+    mode="auto",min_delta=0.00001,cooldown=0,min_lr=0)
+stop_early2 = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=14, min_delta = 0.00001)
+reduce_lr3 = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss',factor=0.1,patience=7,verbose=1,
+    mode="auto",min_delta=0.00001,cooldown=0,min_lr=0)
+stop_early3 = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=14, min_delta = 0.00001)
+#tuner.search(x = train_dataset,y = None, epochs=200, validation_data=(test_dataset, None), callbacks = [stop_early, reduce_lr, NanTerm]) #validation_data=(test_dataset,test_dataset)
 print("SEARCH COMPLETE")
 best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
 model = tuner.hypermodel.build(best_hps)
-#history = model.fit(x = train_dataset, y = None, epochs=400, validation_data = (test_dataset, None), callbacks = [stop_early2, reduce_lr2], batch_size = 32)
-history = model.fit(x = fin_dataset, y = None, epochs=800, callbacks = [stop_early3, reduce_lr3], batch_size = 32)
+history = model.fit(x = train_dataset, y = None, epochs=400, validation_data = (test_dataset, None), callbacks = [stop_early2, reduce_lr2], batch_size = 32)
 
+#history = model.fit(x = fin_dataset, y = None, epochs=800, callbacks = [stop_early3, reduce_lr3], batch_size = 32)
+print(history.history["val_reconstruction_loss"][-1])
+print(history.history["val_mmd_loss"][-1])
 print("MODEL FITTED")
-model.decoder.save("/cosma5/data/durham/dc-will10/FinalFullVAEdecoder6")
-model.encoder.save("/cosma5/data/durham/dc-will10/FinalFullVAEencoder6")
+model.decoder.save("/cosma5/data/durham/dc-will10/LastFullVAEdecoder10")
+model.encoder.save("/cosma5/data/durham/dc-will10/LastFullVAEencoder10")
 loss = history.history["loss"]
 mmdloss = history.history["mmd_loss"]
 reconloss = history.history["reconstruction_loss"]
 klloss = history.history["kl_loss"]
-#valloss = history.history["val_loss"]
-#valreconloss = history.history["val_reconstruction_loss"]
-#valklloss = history.history["val_kl_loss"]
+valloss = history.history["val_loss"]
+valreconloss = history.history["val_reconstruction_loss"]
+valklloss = history.history["val_kl_loss"]
+valmmdloss = history.history["val_mmd_loss"]
 #np.savez("FinalFullVAEmetrics.npz", loss = loss, mmdloss = mmdloss, reconloss = reconloss, klloss = klloss,valloss = valloss, valreconloss = valreconloss, valklloss = valklloss)
-np.savez("FinalFullVAEmetrics6.npz", loss = loss, mmdloss = mmdloss, reconloss = reconloss, klloss = klloss)
+np.savez("/cosma5/data/durham/dc-will10/LastFullVAEmetrics6.npz", loss = loss, mmdloss = mmdloss, reconloss = reconloss, klloss = klloss, valloss = valloss, valreconloss = valreconloss, valklloss = valklloss, valmmdloss = valmmdloss)
 #import pdb;pdb.set_trace()
-sp = proper["spectra"]
-objids = proper["objid"]
-for i in range(len(sp)):
-    sp[i] /= proper["norms"][i]
+#sp = proper["spectra"]
+#objids = proper["objid"]
+#for i in range(len(sp)):
+#    sp[i] /= proper["norms"][i]
 
-sp = np.expand_dims(sp, axis=1)
-sp = np.moveaxis(sp, 1, -1)
-
+#sp = np.expand_dims(sp, axis=1)
+#sp = np.moveaxis(sp, 1, -1)
+sp = spec[0:int(spec.shape[0] * trainfrac)]
+objids = objids[0:int(spec.shape[0] * trainfrac)]
+zs = zs[0:int(spec.shape[0] * trainfrac)]
 labels = []
-zs = []
+#zs = []
 count = 0
-for i in range(len(sp)):
+for i in range(int(spec.shape[0] * trainfrac)):
     #mean, logvar, z = vae.encoder.predict(sp[i][np.newaxis, :, :])
     test = np.expand_dims(sp[i], axis = 0)
     mean, logvar, z = model.encoder.predict(test)
@@ -597,8 +634,8 @@ for i in range(len(sp)):
     label[0:latent_dim] = mean
     label[latent_dim:2*latent_dim] = logvar
     labels.append(label)
-    z = proper["z"][i]
-    zs.append(z)
+    #z = proper["z"][i]
+    #zs.append(z)
     count+=1
     #print(count)
-np.savez("/cosma5/data/durham/dc-will10/imglabelsOptmidzFinal6.npz", labels = labels, ids = objids, zs = zs)
+np.savez("/cosma5/data/durham/dc-will10/imglabelsOptmidzLast10.npz", labels = labels, ids = objids, zs = zs)
