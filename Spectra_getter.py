@@ -82,7 +82,7 @@ def fetch_and_shift_spectra(n_spectra,
                             zlim=(0, 0.7)):
     """
     This function queries CAS for matching spectra, and then downloads
-    them and shifts them to a common redshift binning
+    them
     """
     # First set up the new wavelength bins for the spectra
     wavemin, wavemax = wavemin, wavemax
